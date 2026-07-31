@@ -85,6 +85,7 @@ class ChangePinInput(BaseModel):
 class CredentialCreate(BaseModel):
     title: str
     category: str = "Other"
+    member_name: str = ""
     username: str = ""
     password: str = ""
     website: str = ""
@@ -125,6 +126,7 @@ class CardCreate(BaseModel):
     bank_name: str
     card_name: str = ""
     card_type: str = "Debit"
+    member_name: str = ""
     card_number: str = ""
     expiry: str = ""
     cvv: str = ""

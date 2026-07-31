@@ -1,5 +1,5 @@
-import { useState, useEffect } from "react";
-import { Plus, Pencil, Trash2, Copy, Eye, EyeOff, CreditCard, Wifi } from "lucide-react";
+import { useState, useEffect, useMemo } from "react";
+import { Plus, Pencil, Trash2, Copy, Eye, EyeOff, CreditCard, Wifi, Users } from "lucide-react";
 import { toast } from "sonner";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
@@ -14,7 +14,7 @@ import {
 import api, { errDetail } from "@/lib/api";
 
 const EMPTY = {
-  bank_name: "", card_name: "", card_type: "Debit", card_number: "",
+  bank_name: "", card_name: "", card_type: "Debit", member_name: "", card_number: "",
   expiry: "", cvv: "", cardholder_name: "", notes: "",
 };
 
@@ -49,6 +49,18 @@ export default function CardsTab() {
   useEffect(() => {
     load();
   }, []);
+
+  const [memberFilter, setMemberFilter] = useState("All");
+
+  const members = useMemo(
+    () => [...new Set(items.map((i) => i.member_name).filter(Boolean))],
+    [items]
+  );
+
+  const visible = useMemo(
+    () => (memberFilter === "All" ? items : items.filter((i) => i.member_name === memberFilter)),
+    [items, memberFilter]
+  );
 
   const openAdd = () => {
     setForm(EMPTY);
@@ -91,15 +103,34 @@ export default function CardsTab() {
 
   return (
     <div className="fade-up">
+      {members.length > 0 && (
+        <div className="flex gap-2 mt-3 overflow-x-auto pb-1 items-center">
+          <Users className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+          {["All", ...members].map((m) => (
+            <button
+              key={m}
+              data-testid={`card-member-tab-${m.toLowerCase()}`}
+              onClick={() => setMemberFilter(m)}
+              className={`px-3 py-1 rounded-full text-xs font-medium whitespace-nowrap transition-colors active:scale-95 ${
+                memberFilter === m ? "bg-emerald-600 text-white" : "bg-emerald-50 text-emerald-700 hover:bg-emerald-100"
+              }`}
+            >
+              {m === "All" ? "All Members" : m}
+            </button>
+          ))}
+        </div>
+      )}
       <div className="mt-5 space-y-4 md:space-y-0 md:grid md:grid-cols-2 md:gap-4 md:items-start">
         {loading && <p className="text-sm text-slate-400 text-center py-10 md:col-span-2">Loading...</p>}
-        {!loading && items.length === 0 && (
+        {!loading && visible.length === 0 && (
           <div className="text-center py-14 md:col-span-2" data-testid="cards-empty-state">
             <CreditCard className="w-10 h-10 text-slate-300 mx-auto mb-3" />
-            <p className="text-slate-500 text-sm">No cards yet. Tap + to add your debit/credit card.</p>
+            <p className="text-slate-500 text-sm">
+              {items.length === 0 ? "No cards yet. Tap + to add your debit/credit card." : "No cards for this member."}
+            </p>
           </div>
         )}
-        {items.map((item) => (
+        {visible.map((item) => (
           <div key={item.id} data-testid={`card-item-${item.id}`}>
             <div className="rounded-2xl bg-slate-900 text-white p-5 relative overflow-hidden shadow-md">
               <div className="absolute -top-10 -right-10 w-40 h-40 rounded-full bg-white/5" />
@@ -108,6 +139,14 @@ export default function CardsTab() {
                 <div>
                   <p className="font-medium">{item.bank_name}</p>
                   <p className="text-xs text-slate-400">{item.card_name || ""}</p>
+                  {item.member_name && (
+                    <span
+                      className="inline-block mt-1 px-2 py-0.5 rounded-full bg-emerald-400/20 text-emerald-300 text-[10px] font-medium"
+                      data-testid={`card-member-${item.id}`}
+                    >
+                      {item.member_name}
+                    </span>
+                  )}
                 </div>
                 <div className="flex items-center gap-2">
                   <Wifi className="w-4 h-4 text-slate-500 rotate-90" />
@@ -223,6 +262,16 @@ export default function CardsTab() {
                 placeholder="e.g. Millennia, Platinum"
                 value={form.card_name}
                 onChange={(e) => setForm({ ...form, card_name: e.target.value })}
+                className="rounded-xl"
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label>Member / For Whom</Label>
+              <Input
+                data-testid="card-member-input"
+                placeholder="e.g. Father, Mother, Self"
+                value={form.member_name}
+                onChange={(e) => setForm({ ...form, member_name: e.target.value })}
                 className="rounded-xl"
               />
             </div>

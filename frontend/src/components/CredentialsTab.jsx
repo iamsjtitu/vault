@@ -41,7 +41,7 @@ const copyText = async (text, label) => {
   }
 };
 
-const EMPTY = { title: "", category: "Bank", username: "", password: "", website: "", notes: "" };
+const EMPTY = { title: "", category: "Bank", member_name: "", username: "", password: "", website: "", notes: "" };
 
 export default function CredentialsTab() {
   const [items, setItems] = useState([]);
@@ -63,16 +63,27 @@ export default function CredentialsTab() {
     load();
   }, []);
 
+  const [memberFilter, setMemberFilter] = useState("All");
+
+  const members = useMemo(
+    () => [...new Set(items.map((i) => i.member_name).filter(Boolean))],
+    [items]
+  );
+
   const visible = useMemo(() => {
     let list = filter === "All" ? items : items.filter((i) => i.category === filter);
+    if (memberFilter !== "All") list = list.filter((i) => i.member_name === memberFilter);
     if (search.trim()) {
       const q = search.toLowerCase();
       list = list.filter(
-        (i) => i.title.toLowerCase().includes(q) || i.username.toLowerCase().includes(q)
+        (i) =>
+          i.title.toLowerCase().includes(q) ||
+          i.username.toLowerCase().includes(q) ||
+          (i.member_name || "").toLowerCase().includes(q)
       );
     }
     return list;
-  }, [items, filter, search]);
+  }, [items, filter, memberFilter, search]);
 
   const openAdd = () => {
     setForm(EMPTY);
@@ -143,6 +154,24 @@ export default function CredentialsTab() {
         ))}
       </div>
 
+      {members.length > 0 && (
+        <div className="flex gap-2 mt-3 overflow-x-auto pb-1 items-center">
+          <Users className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+          {["All", ...members].map((m) => (
+            <button
+              key={m}
+              data-testid={`member-tab-${m.toLowerCase()}`}
+              onClick={() => setMemberFilter(m)}
+              className={`px-3 py-1 rounded-full text-xs font-medium whitespace-nowrap transition-colors active:scale-95 ${
+                memberFilter === m ? "bg-emerald-600 text-white" : "bg-emerald-50 text-emerald-700 hover:bg-emerald-100"
+              }`}
+            >
+              {m === "All" ? "All Members" : m}
+            </button>
+          ))}
+        </div>
+      )}
+
       <div className="mt-5 space-y-3 md:space-y-0 md:grid md:grid-cols-2 md:gap-4 md:items-start">
         {loading && <p className="text-sm text-slate-400 text-center py-10 md:col-span-2">Loading...</p>}
         {!loading && visible.length === 0 && (
@@ -164,7 +193,17 @@ export default function CredentialsTab() {
                   <Icon className="w-5 h-5" />
                 </div>
                 <div className="flex-1 min-w-0">
-                  <p className="font-medium text-slate-900 truncate">{item.title}</p>
+                  <p className="font-medium text-slate-900 truncate">
+                    {item.title}
+                    {item.member_name && (
+                      <span
+                        className="ml-2 px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 text-xs font-medium align-middle"
+                        data-testid={`credential-member-${item.id}`}
+                      >
+                        {item.member_name}
+                      </span>
+                    )}
+                  </p>
                   <p className="text-sm text-slate-500 truncate">{item.username || "—"}</p>
                 </div>
                 <div className="flex gap-1">
@@ -260,6 +299,16 @@ export default function CredentialsTab() {
                   ))}
                 </SelectContent>
               </Select>
+            </div>
+            <div className="space-y-1.5">
+              <Label>Member / For Whom</Label>
+              <Input
+                data-testid="credential-member-input"
+                placeholder="e.g. Father, Mother, Self"
+                value={form.member_name}
+                onChange={(e) => setForm({ ...form, member_name: e.target.value })}
+                className="rounded-xl"
+              />
             </div>
             <div className="space-y-1.5">
               <Label>Username / Login ID</Label>

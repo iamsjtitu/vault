@@ -140,6 +140,76 @@ class TestCards:
         assert r.status_code == 404
 
 
+# -------- Credentials member_name --------
+class TestCredentialMember:
+    def test_credential_member_roundtrip(self, auth_headers):
+        payload = {"title": "TEST_PNB", "category": "Bank", "member_name": "Father",
+                   "username": "u", "password": "p", "website": "", "notes": ""}
+        r = requests.post(f"{BASE_URL}/api/credentials", json=payload, headers=auth_headers)
+        assert r.status_code == 200, r.text
+        j = r.json()
+        assert j["member_name"] == "Father"
+        cid = j["id"]
+
+        # GET
+        r = requests.get(f"{BASE_URL}/api/credentials", headers=auth_headers)
+        got = next(x for x in r.json() if x["id"] == cid)
+        assert got["member_name"] == "Father"
+        assert got["password"] == "p"
+
+        # UPDATE member
+        upd = {**payload, "member_name": "Mother"}
+        r = requests.put(f"{BASE_URL}/api/credentials/{cid}", json=upd, headers=auth_headers)
+        assert r.status_code == 200
+        assert r.json()["member_name"] == "Mother"
+
+        r = requests.get(f"{BASE_URL}/api/credentials", headers=auth_headers)
+        got = next(x for x in r.json() if x["id"] == cid)
+        assert got["member_name"] == "Mother"
+
+        requests.delete(f"{BASE_URL}/api/credentials/{cid}", headers=auth_headers)
+
+    def test_credential_member_default_empty(self, auth_headers):
+        payload = {"title": "TEST_NoMember", "category": "Other"}
+        r = requests.post(f"{BASE_URL}/api/credentials", json=payload, headers=auth_headers)
+        assert r.status_code == 200
+        j = r.json()
+        assert j["member_name"] == ""
+        requests.delete(f"{BASE_URL}/api/credentials/{j['id']}", headers=auth_headers)
+
+
+# -------- Cards member_name --------
+class TestCardMember:
+    def test_card_member_roundtrip(self, auth_headers):
+        payload = {"bank_name": "TEST_ICICI", "card_type": "Debit", "member_name": "Self",
+                   "card_number": "4000111122223333", "expiry": "01/30", "cvv": "111",
+                   "cardholder_name": "T U"}
+        r = requests.post(f"{BASE_URL}/api/cards", json=payload, headers=auth_headers)
+        assert r.status_code == 200, r.text
+        j = r.json()
+        assert j["member_name"] == "Self"
+        cid = j["id"]
+
+        r = requests.get(f"{BASE_URL}/api/cards", headers=auth_headers)
+        got = next(x for x in r.json() if x["id"] == cid)
+        assert got["member_name"] == "Self"
+
+        upd = {**payload, "member_name": "Mother"}
+        r = requests.put(f"{BASE_URL}/api/cards/{cid}", json=upd, headers=auth_headers)
+        assert r.status_code == 200
+        assert r.json()["member_name"] == "Mother"
+
+        requests.delete(f"{BASE_URL}/api/cards/{cid}", headers=auth_headers)
+
+    def test_card_member_default_empty(self, auth_headers):
+        payload = {"bank_name": "TEST_NoMemberCard"}
+        r = requests.post(f"{BASE_URL}/api/cards", json=payload, headers=auth_headers)
+        assert r.status_code == 200
+        j = r.json()
+        assert j["member_name"] == ""
+        requests.delete(f"{BASE_URL}/api/cards/{j['id']}", headers=auth_headers)
+
+
 # -------- Insurance with new fields --------
 class TestInsuranceNewFields:
     def test_insurance_member_and_due_date(self, auth_headers):
