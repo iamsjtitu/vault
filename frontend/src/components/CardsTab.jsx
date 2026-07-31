@@ -42,9 +42,12 @@ export default function CardsTab() {
   const [deleteId, setDeleteId] = useState(null);
   const [reveal, setReveal] = useState({});
   const [saving, setSaving] = useState(false);
+  const [memberSuggestions, setMemberSuggestions] = useState([]);
 
-  const load = () =>
+  const load = () => {
     api.get("/cards").then(({ data }) => setItems(data)).finally(() => setLoading(false));
+    api.get("/members").then(({ data }) => setMemberSuggestions(data)).catch(() => {});
+  };
 
   useEffect(() => {
     load();
@@ -270,10 +273,16 @@ export default function CardsTab() {
               <Input
                 data-testid="card-member-input"
                 placeholder="e.g. Father, Mother, Self"
+                list="card-member-suggestions"
                 value={form.member_name}
                 onChange={(e) => setForm({ ...form, member_name: e.target.value })}
                 className="rounded-xl"
               />
+              <datalist id="card-member-suggestions">
+                {memberSuggestions.map((m) => (
+                  <option key={m} value={m} />
+                ))}
+              </datalist>
             </div>
             <div className="space-y-1.5">
               <Label>Card Number</Label>

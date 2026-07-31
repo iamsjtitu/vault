@@ -55,9 +55,12 @@ export default function CredentialsTab() {
   const [showPw, setShowPw] = useState({});
   const [showFormPw, setShowFormPw] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [memberSuggestions, setMemberSuggestions] = useState([]);
 
-  const load = () =>
+  const load = () => {
     api.get("/credentials").then(({ data }) => setItems(data)).finally(() => setLoading(false));
+    api.get("/members").then(({ data }) => setMemberSuggestions(data)).catch(() => {});
+  };
 
   useEffect(() => {
     load();
@@ -282,10 +285,16 @@ export default function CredentialsTab() {
               <Input
                 data-testid="credential-title-input"
                 placeholder="e.g. SBI Net Banking"
+                list="title-suggestions"
                 value={form.title}
                 onChange={(e) => setForm({ ...form, title: e.target.value })}
                 className="rounded-xl"
               />
+              <datalist id="title-suggestions">
+                {[...new Set(items.map((i) => i.title))].map((t) => (
+                  <option key={t} value={t} />
+                ))}
+              </datalist>
             </div>
             <div className="space-y-1.5">
               <Label>Category</Label>
@@ -305,10 +314,16 @@ export default function CredentialsTab() {
               <Input
                 data-testid="credential-member-input"
                 placeholder="e.g. Father, Mother, Self"
+                list="cred-member-suggestions"
                 value={form.member_name}
                 onChange={(e) => setForm({ ...form, member_name: e.target.value })}
                 className="rounded-xl"
               />
+              <datalist id="cred-member-suggestions">
+                {memberSuggestions.map((m) => (
+                  <option key={m} value={m} />
+                ))}
+              </datalist>
             </div>
             <div className="space-y-1.5">
               <Label>Username / Login ID</Label>

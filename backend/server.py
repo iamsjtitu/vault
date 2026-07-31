@@ -325,6 +325,14 @@ async def delete_card(card_id: str, _: str = Depends(require_auth)):
     return {"message": "Deleted"}
 
 
+@api_router.get("/members")
+async def list_members(_: str = Depends(require_auth)):
+    names = set()
+    for coll in (db.credentials, db.cards, db.insurance):
+        names.update(await coll.distinct("member_name"))
+    return sorted(n for n in names if n)
+
+
 app.include_router(api_router)
 
 app.add_middleware(

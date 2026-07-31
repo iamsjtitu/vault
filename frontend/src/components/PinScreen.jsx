@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Delete, ShieldCheck } from "lucide-react";
 import { toast } from "sonner";
 import api, { setToken, errDetail } from "@/lib/api";
@@ -56,6 +56,15 @@ export default function PinScreen({ mode, onUnlock }) {
     setPin(next);
     if (next.length === PIN_LENGTH) setTimeout(() => submit(next), 150);
   };
+
+  useEffect(() => {
+    const onKey = (e) => {
+      if (e.key >= "0" && e.key <= "9") press(e.key);
+      else if (e.key === "Backspace") setPin((p) => p.slice(0, -1));
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  });
 
   return (
     <div className="min-h-screen bg-slate-50 flex flex-col items-center justify-center px-6" data-testid="pin-screen">
