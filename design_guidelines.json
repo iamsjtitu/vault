@@ -1,0 +1,103 @@
+{
+  "theme": "light",
+  "archetype": "Soft Utility (Clean & Trustworthy)",
+  "typography": {
+    "headings": {
+      "fontFamily": "Work Sans, sans-serif",
+      "weights": ["400", "600"],
+      "tracking": "tracking-tight"
+    },
+    "body": {
+      "fontFamily": "IBM Plex Sans, sans-serif",
+      "weights": ["400", "500"]
+    },
+    "scale": {
+      "h1": "text-3xl sm:text-4xl",
+      "h2": "text-2xl sm:text-3xl",
+      "h3": "text-xl",
+      "body": "text-base",
+      "small": "text-sm text-slate-500"
+    }
+  },
+  "colors": {
+    "background": "bg-slate-50",
+    "surface": "bg-white",
+    "primary": "bg-slate-900 text-white",
+    "secondary": "bg-slate-100 text-slate-900",
+    "border": "border-slate-200",
+    "accent": "bg-blue-600 text-white",
+    "text_primary": "text-slate-900",
+    "text_secondary": "text-slate-500",
+    "success": "text-emerald-600 bg-emerald-50",
+    "warning": "text-amber-600 bg-amber-50",
+    "error": "text-rose-600 bg-rose-50"
+  },
+  "visual_enhancers": {
+    "shadows": {
+      "card": "shadow-sm",
+      "dropdown": "shadow-lg shadow-slate-200/50"
+    },
+    "borders": {
+      "default": "border border-slate-200",
+      "active": "border-slate-400"
+    },
+    "radius": {
+      "button": "rounded-full",
+      "card": "rounded-2xl",
+      "input": "rounded-xl"
+    },
+    "surfaces": "Use pure white cards on slate-50 background for clean separation. No heavy glassmorphism for health/finance to keep data legible."
+  },
+  "layouts": {
+    "container": "max-w-md mx-auto min-h-screen bg-slate-50 flex flex-col",
+    "padding": "p-4 sm:p-6",
+    "gap": "gap-4 sm:gap-6",
+    "bento_insurance": "grid grid-cols-2 gap-4. Primary metric (Sum Assured) spans full width, smaller metrics (Premium, Years) span 1 column."
+  },
+  "components": {
+    "pin_keypad": "Grid of rounded-full buttons. text-2xl font-medium. Minimalist, no borders, just subtle hover/active background (bg-slate-200). Use lucide-react for backspace.",
+    "vault_card": "Flex row layout. Left: Icon (Bank, Social, etc.) in a rounded-lg soft background. Middle: Title + Subtitle (Username). Right: Copy password button (ghost variant).",
+    "insurance_card": "Similar to vault card but includes badge for 'Policy Term' and highlights 'Premium' amount.",
+    "tabs": "Pill-shaped tabs for categories. Active tab gets bg-slate-900 text-white, inactive gets bg-slate-100 text-slate-600.",
+    "password_input": "Input with trailing icon for visibility toggle (Eye/EyeOff) and copy button.",
+    "fab": "Floating Action Button fixed bottom-right. Large rounded-full, primary color, shadow-lg, Plus icon.",
+    "toast": "Use sonner for copy confirmations. e.g., 'Password copied to clipboard'"
+  },
+  "motion": {
+    "click": "Active states must slightly scale down (active:scale-95) for tactile feedback.",
+    "route_transition": "Simple fade-in or slide-up. Keep it snappy.",
+    "pin_entry": "Staggered fade for the dots representing entered digits."
+  },
+  "accessibility": {
+    "contrast": "Ensure all text, especially text-slate-500, passes APCA/WCAG. No grey-on-grey.",
+    "focus": "focus:outline-none focus:ring-2 focus:ring-slate-900 focus:ring-offset-2",
+    "aria": "Add aria-label to icon-only buttons (copy, view password)."
+  },
+  "testing_attributes": {
+    "rules": "All interactive and key informational elements MUST include a data-testid attribute.",
+    "examples": [
+      "data-testid='pin-button-1'",
+      "data-testid='copy-password-button'",
+      "data-testid='add-credential-fab'",
+      "data-testid='category-tab-bank'"
+    ]
+  },
+  "universal_guidelines_for_main_agent": [
+    "You tend to converge toward generic, 'on distribution' outputs. In frontend design, this creates what users call the 'AI slop' aesthetic. Avoid this: make creative, distinctive frontends that surprise and delight.",
+    "Dark colors look good when used independently without gradients. DO NOT use dark colors as gradients",
+    "Don't make generic centered layouts, simplistic gradients, and uniform styling.",
+    "Create depth through layered design elements with z-index hierarchy",
+    "Use glass-morphism effects with backdrop filters (12-24px blur) only where appropriate, but prefer solid clean surfaces for data-heavy apps like this.",
+    "You MUST NOT apply universal transition. Eg: transition: all. Always add transitions for specific interactive elements like button, input excluding transforms.",
+    "You MUST NOT center align the app container, ie do not add .App { text-align: center; } in the css file.",
+    "Always use modern button styles like pill-shaped, or sharp button with interaction animations & color relevant to the app style.",
+    "NEVER: use AI assistant Emoji characters like 🤖🧠💭💡🔮🎯 etc for icons.",
+    "Every interaction needs micro-animations - hover states, transitions, parallax effects, and entrance animations. Static = dead.",
+    "Use 2-3x more spacing than feels comfortable. Cramped designs look cheap.",
+    "Subtle grain textures, noise overlays, custom cursors, selection states, and loading animations: separates good from extraordinary.",
+    "Prioritize using pre-existing components from src/components/ui when applicable.",
+    "Create new components that match the style and conventions of existing components when needed.",
+    "Examine existing components to understand the project's component patterns before creating new ones.",
+    "Use `sonner` for toasts. Sonner component are located in /app/frontend/src/components/ui/sonner.tsx."
+  ]
+}
