@@ -16,11 +16,21 @@
 - React frontend: PinScreen, CredentialsTab, InsuranceTab; axios instance in `src/lib/api.js` (token in localStorage `vault_token`, 401 → auto-lock)
 - Design: light "Soft Utility" theme, Work Sans + IBM Plex Sans, max-w-md mobile-first layout
 
-## Implemented (June 2026 — MVP)
+## Implemented
+### June 2026 — MVP
 - PIN setup (first run) + unlock keypad with dots/shake animation
 - Logins vault: CRUD, categories (Bank/Email/Social/Card/Other), search, show/hide password, copy username/password with toast, strong password generator (16 chars)
 - Insurance vault: CRUD with company, plan, policy number, premium (+frequency), term years, sum assured, maturity amount/date, nominee, notes; ₹ en-IN formatting
 - Lock button, session expiry auto-lock, change-pin API endpoint (backend only)
+
+### June 2026 — Iteration 2
+- Change PIN dialog via settings gear (old/new/confirm, digits only)
+- Cards section: debit/credit cards rendered as dark payment-card tiles; card_number + CVV Fernet-encrypted at rest; show/hide, copy number, edit/delete
+- Insurance: member_name (Father/Mother/Self) with badge + search by member/company/plan/policy/nominee; premium_due_date field
+- Premium Reminders banner: policies due within 30 days (or overdue) with ₹ amount and due text
+- PWA installable (manifest.json, sw.js, 192/512 icons): install on Windows (Chrome/Edge "Install app") and mobile ("Add to Home Screen"); data syncs across devices via cloud backend
+- Desktop layout: 2-column grid on md+ screens
+- Fixed: axios 401 interceptor no longer auto-locks on change-pin failure
 
 ## Testing
 - Iteration 1: 100% pass backend (8/8 pytest) + all frontend flows (see /app/test_reports/iteration_1.json)

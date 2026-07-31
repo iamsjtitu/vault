@@ -23,7 +23,12 @@ function App() {
     const id = api.interceptors.response.use(
       (r) => r,
       (e) => {
-        if (e.response?.status === 401 && localStorage.getItem("vault_token")) lock();
+        if (
+          e.response?.status === 401 &&
+          !e.config?.url?.includes("/auth/change-pin") &&
+          localStorage.getItem("vault_token")
+        )
+          lock();
         return Promise.reject(e);
       }
     );
