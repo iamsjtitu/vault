@@ -32,6 +32,10 @@
 - Desktop layout: 2-column grid on md+ screens
 - Fixed: axios 401 interceptor no longer auto-locks on change-pin failure
 
+### June 2026 — Iteration 3
+- Family Grouping: member_name on Logins & Cards (like Insurance) — "Member / For Whom" field in forms, emerald member badges, member filter pills (dynamic, hidden when unused), member included in logins search
+- Fixed: FAB was mis-anchored (fadeUp transform created containing block); animation now opacity-only, FAB truly bottom-right
+
 ## Testing
 - Iteration 1: 100% pass backend (8/8 pytest) + all frontend flows (see /app/test_reports/iteration_1.json)
 - Master PIN for testing: 1234 (see /app/memory/test_credentials.md)
