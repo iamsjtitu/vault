@@ -1,0 +1,38 @@
+{
+  "summary": "Iteration 2 testing of MyVault new features. Backend: 12/12 pytest tests pass — Change-PIN (success + revert, wrong old_pin=401, no auth=401), Cards CRUD with Fernet encryption verified at rest (card_number & cvv 'gAAAA…' in mongo; decrypted via API), Insurance member_name & premium_due_date round-trip, PWA manifest.json / sw.js / icon-192.png all return 200. Frontend Playwright: PIN unlock (1234), Change PIN dialog (mismatch/wrong-old/success + revert back to 1234), Cards tab (add with auto-grouping '4111 2222 3333 5555', masked display '•••• •••• •••• 5555', reveal shows full number + CVV, copy toast, edit, delete), Insurance tab (premium reminders banner shows 'Due in 15 days', search by 'Father' filters correctly, member badge visible, search by company 'LIC' works, empty state on no-match, member+premium_due inputs present), 3-tab switching all work, Logins regression OK (SBI Bank credential renders). PIN left as 1234.",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [
+      {"component": "App.js axios interceptor + ChangePinDialog", "issue": "When change-pin fails with wrong old_pin (backend returns 401), the global axios response interceptor auto-locks the vault (calls lock()) because it treats every 401 with a stored token as a session expiry. Result: user is unexpectedly kicked back to PIN screen and toast error may be missed. Only the /auth/change-pin 401 path is affected — /auth/unlock is a public path with no token, so it's exempt. Fix: exclude `/auth/change-pin` from the interceptor's auto-lock, or check `error.config.url` before locking.", "selector": "App.js:23-31", "priority": "MEDIUM"}
+    ],
+    "integration_issues": [],
+    "design_issues": [
+      {"screen": "Dev-mode webpack overlay", "issues": ["A benign ResizeObserver warning triggers the webpack-dev-server-client-overlay iframe which blocks Playwright clicks in dev. Non-blocking for prod but affects automated tests. Consider `ignoreWarnings` or `client.overlay.runtimeErrors:false` in webpack devServer config."]}
+    ]
+  },
+  "test_report_links": ["/app/backend/tests/backend_test.py", "/app/test_reports/pytest/pytest_results.xml"],
+  "action_items": [
+    "Fix axios interceptor in /app/frontend/src/App.js to NOT auto-lock the vault when a 401 comes from /auth/change-pin (only lock on session-scope 401s like /credentials, /cards, /insurance). One-line fix: `if (e.response?.status === 401 && !e.config.url.includes('/auth/change-pin') && localStorage.getItem('vault_token')) lock();`",
+    "(Optional) Suppress webpack-dev-server ResizeObserver overlay for smoother e2e testing."
+  ],
+  "critical_code_review_comments": [
+    "Cards: card_number & cvv correctly Fernet-encrypted at rest ('gAAAA…' verified in db.cards). Excellent — matches credentials pattern.",
+    "Change-PIN endpoint is protected via require_auth and re-verifies old_pin with bcrypt — solid.",
+    "Insurance new fields (member_name, premium_due_date) round-trip cleanly; reminder banner uses days = (due-today)/86400000, filters ≤30 days — correct.",
+    "Global axios 401 auto-lock in App.js is too aggressive; it locks the vault for ANY 401 (including change-pin wrong-old-pin), which is a UX bug (user sees PIN screen instead of error toast). Recommended: scope auto-lock to session-endpoint 401s only.",
+    "manifest.json is minimal but valid (name, icons, display:standalone). Consider adding scope, id, orientation for stricter PWA install criteria.",
+    "All new interactive elements have data-testid — excellent testability.",
+    "MongoDB _id excluded via {_id: 0} projection in all list endpoints — good."
+  ],
+  "updated_files": ["/app/backend/tests/backend_test.py"],
+  "success_rate": {"backend": "100% (12/12)", "frontend": "100% flows exercised; 1 UX bug (change-pin 401 auto-locks vault)"},
+  "test_credentials": "Master PIN: 1234 (verified & left as-is at end of testing)",
+  "seed_data_creation": "Test-only card TEST_ICICI created & deleted; PIN was temporarily changed to 5678 and reverted to 1234; login_attempts collection cleared. Existing seed data (SBI Bank credential, HDFC card ...4444, LIC insurance for Father with due 2026-08-15) untouched.",
+  "retest_needed": true,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Run backend tests with `pytest /app/backend/tests/backend_test.py -n 0 --junitxml=/app/test_reports/pytest/pytest_results.xml`. Master PIN=1234. If lockout: `mongosh test_database --eval 'db.login_attempts.deleteMany({})'`. In dev preview, a webpack overlay from ResizeObserver warnings may intercept Playwright clicks — remove it via `document.getElementById('webpack-dev-server-client-overlay')?.remove()` in tests. Existing seed data present.",
+  "rca of the issue": "Axios response interceptor in App.js (lines 23-31) fires on ANY 401 while a token exists; wrong-old-pin during change-pin returns 401 → interceptor calls lock() → user forced to PIN screen. Backend behavior is correct (401 semantically correct); frontend interceptor should exclude auth mutation endpoints (change-pin) or check `error.config.url` before auto-locking. One-line fix in App.js suffices."
+}

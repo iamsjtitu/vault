@@ -143,10 +143,10 @@ export default function CredentialsTab() {
         ))}
       </div>
 
-      <div className="mt-5 space-y-3">
-        {loading && <p className="text-sm text-slate-400 text-center py-10">Loading...</p>}
+      <div className="mt-5 space-y-3 md:space-y-0 md:grid md:grid-cols-2 md:gap-4 md:items-start">
+        {loading && <p className="text-sm text-slate-400 text-center py-10 md:col-span-2">Loading...</p>}
         {!loading && visible.length === 0 && (
-          <div className="text-center py-14" data-testid="credentials-empty-state">
+          <div className="text-center py-14 md:col-span-2" data-testid="credentials-empty-state">
             <KeyRound className="w-10 h-10 text-slate-300 mx-auto mb-3" />
             <p className="text-slate-500 text-sm">No logins yet. Tap + to add your first one.</p>
           </div>
@@ -226,7 +226,7 @@ export default function CredentialsTab() {
         data-testid="add-credential-fab"
         aria-label="Add login"
         onClick={openAdd}
-        className="fixed bottom-6 right-6 sm:right-[calc(50%-17.5rem)] w-14 h-14 rounded-full bg-slate-900 text-white shadow-lg shadow-slate-400/40 flex items-center justify-center hover:bg-slate-700 active:scale-95 transition-colors z-40"
+        className="fixed bottom-6 right-6 w-14 h-14 rounded-full bg-slate-900 text-white shadow-lg shadow-slate-400/40 flex items-center justify-center hover:bg-slate-700 active:scale-95 transition-colors z-40"
       >
         <Plus className="w-6 h-6" />
       </button>

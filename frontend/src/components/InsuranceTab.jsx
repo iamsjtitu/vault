@@ -1,5 +1,5 @@
-import { useState, useEffect } from "react";
-import { Plus, Pencil, Trash2, FileText, ShieldPlus, CalendarDays, User } from "lucide-react";
+import { useState, useEffect, useMemo } from "react";
+import { Plus, Pencil, Trash2, FileText, ShieldPlus, CalendarDays, User, Search, BellRing } from "lucide-react";
 import { toast } from "sonner";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
@@ -14,8 +14,8 @@ import {
 import api, { errDetail } from "@/lib/api";
 
 const EMPTY = {
-  company_name: "", plan_name: "", policy_number: "", premium_amount: "",
-  premium_frequency: "Yearly", term_years: "", sum_assured: "",
+  company_name: "", plan_name: "", policy_number: "", member_name: "", premium_amount: "",
+  premium_frequency: "Yearly", premium_due_date: "", term_years: "", sum_assured: "",
   maturity_amount: "", maturity_date: "", nominee: "", notes: "",
 };
 
@@ -25,6 +25,7 @@ const inr = (n) =>
 export default function InsuranceTab() {
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [search, setSearch] = useState("");
   const [dialogOpen, setDialogOpen] = useState(false);
   const [form, setForm] = useState(EMPTY);
   const [editId, setEditId] = useState(null);
@@ -37,6 +38,29 @@ export default function InsuranceTab() {
   useEffect(() => {
     load();
   }, []);
+
+  const visible = useMemo(() => {
+    if (!search.trim()) return items;
+    const q = search.toLowerCase();
+    return items.filter((i) =>
+      [i.company_name, i.plan_name, i.member_name, i.policy_number, i.nominee].some((v) =>
+        (v || "").toLowerCase().includes(q)
+      )
+    );
+  }, [items, search]);
+
+  const reminders = useMemo(() => {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    return items
+      .filter((i) => i.premium_due_date)
+      .map((i) => ({ ...i, days: Math.round((new Date(i.premium_due_date) - today) / 86400000) }))
+      .filter((i) => i.days <= 30)
+      .sort((a, b) => a.days - b.days);
+  }, [items]);
+
+  const dueText = (d) =>
+    d < 0 ? `Overdue by ${-d} day${-d > 1 ? "s" : ""}` : d === 0 ? "Due today" : `Due in ${d} day${d > 1 ? "s" : ""}`;
 
   const openAdd = () => {
     setForm(EMPTY);
@@ -106,15 +130,49 @@ export default function InsuranceTab() {
 
   return (
     <div className="fade-up">
-      <div className="mt-5 space-y-3">
-        {loading && <p className="text-sm text-slate-400 text-center py-10">Loading...</p>}
-        {!loading && items.length === 0 && (
-          <div className="text-center py-14" data-testid="insurance-empty-state">
+      <div className="relative mt-3">
+        <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
+        <Input
+          data-testid="search-insurance-input"
+          placeholder="Search by member, company, plan..."
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          className="pl-10 rounded-xl bg-white border-slate-200 h-11"
+        />
+      </div>
+
+      {reminders.length > 0 && (
+        <div className="mt-4 bg-amber-50 border border-amber-200 rounded-2xl p-4" data-testid="premium-reminders">
+          <p className="text-sm font-semibold text-amber-800 flex items-center gap-2 mb-2">
+            <BellRing className="w-4 h-4" /> Upcoming Premiums
+          </p>
+          <div className="space-y-2">
+            {reminders.map((r) => (
+              <div key={r.id} className="flex items-center justify-between text-sm" data-testid={`reminder-${r.id}`}>
+                <span className="text-slate-700 truncate">
+                  {r.company_name}
+                  {r.member_name ? ` · ${r.member_name}` : ""}
+                </span>
+                <span className={`font-medium whitespace-nowrap ml-2 ${r.days < 0 ? "text-rose-600" : "text-amber-700"}`}>
+                  {inr(r.premium_amount)} · {dueText(r.days)}
+                </span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      <div className="mt-5 space-y-3 md:space-y-0 md:grid md:grid-cols-2 md:gap-4 md:items-start">
+        {loading && <p className="text-sm text-slate-400 text-center py-10 md:col-span-2">Loading...</p>}
+        {!loading && visible.length === 0 && (
+          <div className="text-center py-14 md:col-span-2" data-testid="insurance-empty-state">
             <ShieldPlus className="w-10 h-10 text-slate-300 mx-auto mb-3" />
-            <p className="text-slate-500 text-sm">No policies yet. Tap + to add your insurance details.</p>
+            <p className="text-slate-500 text-sm">
+              {items.length === 0 ? "No policies yet. Tap + to add your insurance details." : "No matching policies found."}
+            </p>
           </div>
         )}
-        {items.map((item) => (
+        {visible.map((item) => (
           <div
             key={item.id}
             data-testid={`insurance-card-${item.id}`}
@@ -127,6 +185,14 @@ export default function InsuranceTab() {
               <div className="flex-1 min-w-0">
                 <p className="font-medium text-slate-900 truncate">{item.company_name}</p>
                 <p className="text-sm text-slate-500 truncate">{item.plan_name || "—"}</p>
+                {item.member_name && (
+                  <span
+                    className="inline-block mt-1 px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 text-xs font-medium"
+                    data-testid={`insurance-member-${item.id}`}
+                  >
+                    {item.member_name}
+                  </span>
+                )}
                 {item.policy_number && (
                   <p className="text-xs text-slate-400 mt-0.5 font-mono">Policy: {item.policy_number}</p>
                 )}
@@ -172,6 +238,10 @@ export default function InsuranceTab() {
                 <p className="text-xs text-slate-500 flex items-center gap-1"><CalendarDays className="w-3 h-3" /> Maturity Date</p>
                 <p className="font-medium text-slate-900">{item.maturity_date || "—"}</p>
               </div>
+              <div className="bg-amber-50/70 rounded-xl px-3 py-2.5">
+                <p className="text-xs text-slate-500 flex items-center gap-1"><BellRing className="w-3 h-3" /> Next Premium Due</p>
+                <p className="font-medium text-slate-900">{item.premium_due_date || "—"}</p>
+              </div>
             </div>
             {item.nominee && (
               <p className="text-xs text-slate-500 mt-2 flex items-center gap-1">
@@ -187,7 +257,7 @@ export default function InsuranceTab() {
         data-testid="add-insurance-fab"
         aria-label="Add policy"
         onClick={openAdd}
-        className="fixed bottom-6 right-6 sm:right-[calc(50%-17.5rem)] w-14 h-14 rounded-full bg-slate-900 text-white shadow-lg shadow-slate-400/40 flex items-center justify-center hover:bg-slate-700 active:scale-95 transition-colors z-40"
+        className="fixed bottom-6 right-6 w-14 h-14 rounded-full bg-slate-900 text-white shadow-lg shadow-slate-400/40 flex items-center justify-center hover:bg-slate-700 active:scale-95 transition-colors z-40"
       >
         <Plus className="w-6 h-6" />
       </button>
@@ -216,6 +286,16 @@ export default function InsuranceTab() {
                 placeholder="e.g. Jeevan Anand"
                 value={form.plan_name}
                 onChange={(e) => setForm({ ...form, plan_name: e.target.value })}
+                className="rounded-xl"
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label>Member / For Whom</Label>
+              <Input
+                data-testid="insurance-member-input"
+                placeholder="e.g. Father, Mother, Self"
+                value={form.member_name}
+                onChange={(e) => setForm({ ...form, member_name: e.target.value })}
                 className="rounded-xl"
               />
             </div>
@@ -262,15 +342,27 @@ export default function InsuranceTab() {
                 />
               </div>
             </div>
-            <div className="space-y-1.5">
-              <Label>Nominee</Label>
-              <Input
-                data-testid="insurance-nominee-input"
-                placeholder="Nominee name"
-                value={form.nominee}
-                onChange={(e) => setForm({ ...form, nominee: e.target.value })}
-                className="rounded-xl"
-              />
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1.5">
+                <Label>Next Premium Due</Label>
+                <Input
+                  data-testid="insurance-premium-due-input"
+                  type="date"
+                  value={form.premium_due_date}
+                  onChange={(e) => setForm({ ...form, premium_due_date: e.target.value })}
+                  className="rounded-xl"
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label>Nominee</Label>
+                <Input
+                  data-testid="insurance-nominee-input"
+                  placeholder="Nominee name"
+                  value={form.nominee}
+                  onChange={(e) => setForm({ ...form, nominee: e.target.value })}
+                  className="rounded-xl"
+                />
+              </div>
             </div>
             <div className="space-y-1.5">
               <Label>Benefits / Notes</Label>

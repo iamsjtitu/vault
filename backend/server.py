@@ -26,6 +26,15 @@ JWT_SECRET = os.environ['JWT_SECRET']
 JWT_ALGORITHM = "HS256"
 fernet = Fernet(os.environ['ENCRYPTION_KEY'].encode())
 
+
+def enc(v: str) -> str:
+    return fernet.encrypt(v.encode()).decode() if v else ""
+
+
+def dec(v: str) -> str:
+    return fernet.decrypt(v.encode()).decode() if v else ""
+
+
 app = FastAPI()
 api_router = APIRouter(prefix="/api")
 
@@ -93,8 +102,10 @@ class InsuranceCreate(BaseModel):
     company_name: str
     plan_name: str = ""
     policy_number: str = ""
+    member_name: str = ""
     premium_amount: Optional[float] = None
     premium_frequency: str = "Yearly"
+    premium_due_date: str = ""
     term_years: Optional[int] = None
     sum_assured: Optional[float] = None
     maturity_amount: Optional[float] = None
@@ -104,6 +115,24 @@ class InsuranceCreate(BaseModel):
 
 
 class Insurance(InsuranceCreate):
+    model_config = ConfigDict(extra="ignore")
+    id: str = Field(default_factory=lambda: str(uuid.uuid4()))
+    created_at: str = ""
+    updated_at: str = ""
+
+
+class CardCreate(BaseModel):
+    bank_name: str
+    card_name: str = ""
+    card_type: str = "Debit"
+    card_number: str = ""
+    expiry: str = ""
+    cvv: str = ""
+    cardholder_name: str = ""
+    notes: str = ""
+
+
+class CardItem(CardCreate):
     model_config = ConfigDict(extra="ignore")
     id: str = Field(default_factory=lambda: str(uuid.uuid4()))
     created_at: str = ""
@@ -248,6 +277,52 @@ async def delete_insurance(policy_id: str, _: str = Depends(require_auth)):
     return {"message": "Deleted"}
 
 
+# ---------- Cards ----------
+
+@api_router.get("/cards", response_model=List[CardItem])
+async def list_cards(_: str = Depends(require_auth)):
+    docs = await db.cards.find({}, {"_id": 0}).sort("created_at", -1).to_list(1000)
+    for d in docs:
+        d["card_number"] = dec(d.get("card_number", ""))
+        d["cvv"] = dec(d.get("cvv", ""))
+    return docs
+
+
+@api_router.post("/cards", response_model=CardItem)
+async def create_card(body: CardCreate, _: str = Depends(require_auth)):
+    now = datetime.now(timezone.utc).isoformat()
+    card = CardItem(**body.model_dump(), created_at=now, updated_at=now)
+    doc = card.model_dump()
+    doc["card_number"] = enc(doc["card_number"])
+    doc["cvv"] = enc(doc["cvv"])
+    await db.cards.insert_one(doc)
+    return card
+
+
+@api_router.put("/cards/{card_id}", response_model=CardItem)
+async def update_card(card_id: str, body: CardCreate, _: str = Depends(require_auth)):
+    existing = await db.cards.find_one({"id": card_id}, {"_id": 0})
+    if not existing:
+        raise HTTPException(status_code=404, detail="Card not found")
+    update = body.model_dump()
+    update["updated_at"] = datetime.now(timezone.utc).isoformat()
+    plain_number, plain_cvv = update["card_number"], update["cvv"]
+    update["card_number"] = enc(update["card_number"])
+    update["cvv"] = enc(update["cvv"])
+    await db.cards.update_one({"id": card_id}, {"$set": update})
+    existing.update(update)
+    existing["card_number"], existing["cvv"] = plain_number, plain_cvv
+    return existing
+
+
+@api_router.delete("/cards/{card_id}")
+async def delete_card(card_id: str, _: str = Depends(require_auth)):
+    result = await db.cards.delete_one({"id": card_id})
+    if result.deleted_count == 0:
+        raise HTTPException(status_code=404, detail="Card not found")
+    return {"message": "Deleted"}
+
+
 app.include_router(api_router)
 
 app.add_middleware(
@@ -266,6 +341,7 @@ logger = logging.getLogger(__name__)
 async def create_indexes():
     await db.credentials.create_index("id")
     await db.insurance.create_index("id")
+    await db.cards.create_index("id")
     await db.login_attempts.create_index("identifier")
 
 
