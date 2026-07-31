@@ -297,16 +297,26 @@ export default function InsuranceTab() {
               <Input
                 data-testid="insurance-member-input"
                 placeholder="e.g. Father, Mother, Self"
-                list="insurance-member-suggestions"
                 value={form.member_name}
                 onChange={(e) => setForm({ ...form, member_name: e.target.value })}
                 className="rounded-xl"
               />
-              <datalist id="insurance-member-suggestions">
-                {memberSuggestions.map((m) => (
-                  <option key={m} value={m} />
-                ))}
-              </datalist>
+              {memberSuggestions.length > 0 && (
+                <div className="flex flex-wrap gap-1.5 pt-1" data-testid="insurance-member-suggestions">
+                  {memberSuggestions
+                    .filter((m) => m !== form.member_name)
+                    .map((m) => (
+                      <button
+                        key={m}
+                        type="button"
+                        onClick={() => setForm({ ...form, member_name: m })}
+                        className="px-2.5 py-1 rounded-full bg-emerald-50 text-emerald-700 text-xs font-medium hover:bg-emerald-100 active:scale-95 transition-colors"
+                      >
+                        {m}
+                      </button>
+                    ))}
+                </div>
+              )}
             </div>
             <div className="space-y-1.5">
               <Label>Policy Number</Label>

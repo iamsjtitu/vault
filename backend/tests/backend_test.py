@@ -235,6 +235,26 @@ class TestInsuranceNewFields:
         requests.delete(f"{BASE_URL}/api/insurance/{pid}", headers=auth_headers)
 
 
+# -------- Members endpoint (for chip suggestions) --------
+class TestMembers:
+    def test_members_requires_auth(self):
+        r = requests.get(f"{BASE_URL}/api/members")
+        assert r.status_code == 401
+
+    def test_members_returns_distinct_sorted(self, auth_headers):
+        r = requests.get(f"{BASE_URL}/api/members", headers=auth_headers)
+        assert r.status_code == 200, r.text
+        j = r.json()
+        assert isinstance(j, list)
+        # Seed data has Father and Self at minimum
+        assert "Father" in j
+        assert "Self" in j
+        # No empty strings
+        assert all(isinstance(n, str) and n for n in j)
+        # Sorted
+        assert j == sorted(j)
+
+
 # -------- PWA --------
 class TestPWA:
     def test_manifest(self):

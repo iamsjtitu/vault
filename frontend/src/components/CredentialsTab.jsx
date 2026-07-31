@@ -285,16 +285,27 @@ export default function CredentialsTab() {
               <Input
                 data-testid="credential-title-input"
                 placeholder="e.g. SBI Net Banking"
-                list="title-suggestions"
                 value={form.title}
                 onChange={(e) => setForm({ ...form, title: e.target.value })}
                 className="rounded-xl"
               />
-              <datalist id="title-suggestions">
-                {[...new Set(items.map((i) => i.title))].map((t) => (
-                  <option key={t} value={t} />
-                ))}
-              </datalist>
+              {items.length > 0 && (
+                <div className="flex flex-wrap gap-1.5 pt-1" data-testid="title-suggestions">
+                  {[...new Set(items.map((i) => i.title))]
+                    .filter((t) => t !== form.title && t.toLowerCase().includes(form.title.toLowerCase()))
+                    .slice(0, 6)
+                    .map((t) => (
+                      <button
+                        key={t}
+                        type="button"
+                        onClick={() => setForm({ ...form, title: t })}
+                        className="px-2.5 py-1 rounded-full bg-slate-100 text-slate-600 text-xs hover:bg-slate-200 active:scale-95 transition-colors"
+                      >
+                        {t}
+                      </button>
+                    ))}
+                </div>
+              )}
             </div>
             <div className="space-y-1.5">
               <Label>Category</Label>
@@ -314,16 +325,26 @@ export default function CredentialsTab() {
               <Input
                 data-testid="credential-member-input"
                 placeholder="e.g. Father, Mother, Self"
-                list="cred-member-suggestions"
                 value={form.member_name}
                 onChange={(e) => setForm({ ...form, member_name: e.target.value })}
                 className="rounded-xl"
               />
-              <datalist id="cred-member-suggestions">
-                {memberSuggestions.map((m) => (
-                  <option key={m} value={m} />
-                ))}
-              </datalist>
+              {memberSuggestions.length > 0 && (
+                <div className="flex flex-wrap gap-1.5 pt-1" data-testid="cred-member-suggestions">
+                  {memberSuggestions
+                    .filter((m) => m !== form.member_name)
+                    .map((m) => (
+                      <button
+                        key={m}
+                        type="button"
+                        onClick={() => setForm({ ...form, member_name: m })}
+                        className="px-2.5 py-1 rounded-full bg-emerald-50 text-emerald-700 text-xs font-medium hover:bg-emerald-100 active:scale-95 transition-colors"
+                      >
+                        {m}
+                      </button>
+                    ))}
+                </div>
+              )}
             </div>
             <div className="space-y-1.5">
               <Label>Username / Login ID</Label>

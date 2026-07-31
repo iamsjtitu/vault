@@ -38,7 +38,11 @@ function App() {
   useEffect(() => {
     api
       .get("/auth/status")
-      .then(({ data }) => setPhase(data.pin_set ? "locked" : "setup"))
+      .then(({ data }) => {
+        if (!data.pin_set) setPhase("setup");
+        else if (localStorage.getItem("vault_token")) setPhase("unlocked");
+        else setPhase("locked");
+      })
       .catch(() => setPhase("locked"));
   }, []);
 

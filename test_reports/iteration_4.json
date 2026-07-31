@@ -1,0 +1,30 @@
+{
+  "summary": "Iteration 4 verified two mobile-only bug fixes on 390x844 viewport: (1) datalist replaced by tappable suggestion CHIPS, (2) reload persistence via localStorage vault_token. Backend: 18/18 pytest pass (added TestMembers: 401 without auth + returns distinct sorted list ['Father','Self'], all string, no empties). Frontend Playwright (mobile 390x844): unlock via PIN keypad ('1234') OK; page.reload() with valid token goes DIRECTLY to tab-logins (no PIN re-prompt) — Bug Fix 2 confirmed; localStorage.clear + reload → PIN screen; garbage token in localStorage → protected API returns 401 → interceptor clears token and returns to PIN. Chip tests: title-suggestions shows ['PNB Net Banking','SBI Bank'], filters correctly when typing 'PN' (only PNB remains), tapping chip fills credential-title-input. cred-member-suggestions shows ['Father','Self'], tapping Father fills credential-member-input. Full save flow with chip-selected member Father succeeds — verified via GET /api/credentials that member_name=='Father'. card-member-suggestions and insurance-member-suggestions both render ['Father','Self'] on their respective Add dialogs; tapping fills the corresponding member input. Regressions: physical keyboard '1234' typing unlocks; lock-vault-button locks the vault.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {"ui_bugs": [], "integration_issues": [], "design_issues": []},
+  "test_report_links": [
+    "/app/backend/tests/backend_test.py",
+    "/app/test_reports/pytest/pytest_results.xml"
+  ],
+  "action_items": [
+    "(Carry-over, non-blocking) axios interceptor already excludes /auth/change-pin — good. Consider centralizing 401 handling in api.js to avoid needing the interceptor to also read localStorage.",
+    "Minor UX: on garbage-token reload the app briefly renders unlocked shell (tab-logins) before the first 401 fires; could show a splash or await /auth/status before unlocking. Non-blocking."
+  ],
+  "critical_code_review_comments": [
+    "App.js mount effect correctly reads localStorage['vault_token'] AFTER confirming pin_set=true, then jumps to 'unlocked' — clean.",
+    "401 interceptor guard `!e.config?.url?.includes('/auth/change-pin') && localStorage.getItem('vault_token')` correctly avoids locking on wrong-old-pin dialog AND avoids locking after user already lock()ed (token cleared).",
+    "Title chip filter uses .toLowerCase().includes(form.title.toLowerCase()) — a chip matching an empty title shows all; when title equals chip text the chip is hidden (t !== form.title) — correct UX.",
+    "cred-member-suggestions, card-member-suggestions, insurance-member-suggestions all consume GET /api/members which returns sorted distinct non-empty names across credentials/cards/insurance — single source of truth, backwards compatible.",
+    "GET /api/members requires_auth Depends — correctly protected (verified 401 without token).",
+    "Save button testid is 'save-credential-button' (not 'credential-save-button'); worth noting for future test authors.",
+    "Search input testid is 'search-credentials-input' (not 'credentials-search-input') — inconsistent naming vs 'credential-*-input' fields; consider renaming for consistency."
+  ],
+  "updated_files": ["/app/backend/tests/backend_test.py"],
+  "success_rate": {"backend": "100% (18/18)", "frontend": "100% — 10/10 flows passed"},
+  "test_credentials": "Master PIN: 1234 (unchanged)",
+  "seed_data_creation": "Temporary TEST_ChipSave_* credentials created and deleted during Playwright run via API. Stale TEST_ChipSave from prior partial run also cleaned. Existing seed (SBI Bank, PNB Net Banking/Father, HDFC/Self, LIC/Father) untouched.",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Use MOBILE viewport 390x844 for chip tests. Correct testids: pin-button-{0-9}, tab-logins/tab-cards/tab-insurance, add-credential-fab/add-card-fab/add-insurance-fab, save-credential-button/save-card-button/save-insurance-button, search-credentials-input, title-suggestions, cred-member-suggestions, card-member-suggestions, insurance-member-suggestions, credential-{title,member,username,password}-input, card-member-input, insurance-member-input, lock-vault-button. Run backend: pytest /app/backend/tests/backend_test.py -n 0 --junitxml=/app/test_reports/pytest/pytest_results.xml. Remove webpack overlay after tab switches: document.getElementById('webpack-dev-server-client-overlay')?.remove(). PIN=1234; if lockout hits: mongosh test_database --eval 'db.login_attempts.deleteMany({})'.",
+  "rca of the issue": "N/A — both mobile bug fixes verified working. Fix 1 root cause was HTML <datalist> having spotty mobile browser support; replacement with always-visible chip buttons resolved it. Fix 2 root cause was App.js mount unconditionally routing to 'locked' regardless of existing token; adding localStorage.getItem('vault_token') check on mount inside the pin_set=true branch, plus scoping 401 auto-lock to when a token is actually present, resolved it."
+}
