@@ -299,14 +299,28 @@ async def mark_premium_paid(policy_id: str, _: str = Depends(require_auth)):
     months = FREQ_MONTHS.get(policy.get("premium_frequency", "Yearly"))
     current = date.fromisoformat(policy["premium_due_date"])
     new_due = add_months(current, months).isoformat() if months else ""
+    today = date.today().isoformat()
     update = {
         "premium_due_date": new_due,
-        "last_paid_on": date.today().isoformat(),
+        "last_paid_on": today,
         "updated_at": datetime.now(timezone.utc).isoformat(),
     }
     await db.insurance.update_one({"id": policy_id}, {"$set": update})
+    await db.premium_payments.insert_one({
+        "id": str(uuid.uuid4()),
+        "policy_id": policy_id,
+        "paid_on": today,
+        "due_date": policy["premium_due_date"],
+        "amount": policy.get("premium_amount"),
+        "created_at": datetime.now(timezone.utc).isoformat(),
+    })
     policy.update(update)
     return policy
+
+
+@api_router.get("/insurance/{policy_id}/payments")
+async def list_payments(policy_id: str, _: str = Depends(require_auth)):
+    return await db.premium_payments.find({"policy_id": policy_id}, {"_id": 0}).sort("created_at", -1).to_list(500)
 
 
 @api_router.delete("/insurance/{policy_id}")
@@ -315,6 +329,7 @@ async def delete_insurance(policy_id: str, _: str = Depends(require_auth)):
     if result.deleted_count == 0:
         raise HTTPException(status_code=404, detail="Policy not found")
     await delete_parent_documents("insurance", policy_id)
+    await db.premium_payments.delete_many({"policy_id": policy_id})
     return {"message": "Deleted"}
 
 
@@ -478,6 +493,7 @@ async def create_indexes():
     await db.insurance.create_index("id")
     await db.cards.create_index("id")
     await db.documents.create_index([("parent_type", 1), ("parent_id", 1)])
+    await db.premium_payments.create_index("policy_id")
     await db.login_attempts.create_index("identifier")
 
 

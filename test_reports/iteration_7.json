@@ -1,0 +1,26 @@
+{
+  "summary": "Tested Payment History + Maturity Alerts features (iteration 7). Backend: 6/6 new pytest cases pass (test_payments_maturity.py) — 401 without auth, mark-paid records payment with due_date=OLD due, amount, paid_on=today, no _id leak; sorted newest-first (verified 3 sequential monthly marks yield descending created_at and correct historical due_dates 2026-05/04/03-15); delete policy cascades premium_payments; unknown policy returns []; LIC final state intact at 2026-08-15. Prior 11 mark-paid tests still pass. UI: PIN 1234 unlock → Insurance tab → indigo Maturity Alerts banner (data-testid=maturity-alerts) displays both temp policies with '₹5,00,000 · Matures in 20 days' (indigo rgb(67,56,202)) and '₹3,00,000 · Matured — claim now!' (rose class verified visually). Payment History dialog: LIC initially showed payments-empty-state (rows=0). After clicking banner Paid button, reopened history — 1 payment row with '₹25,000 / For due date: 2026-08-15 / Paid 2026-08-02'. Screenshot captured. LIC restored to premium_due_date=2026-08-15; temp policies deleted.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {"ui_bugs": [], "integration_issues": [], "design_issues": []},
+  "test_report_links": [
+    "/app/backend/tests/test_payments_maturity.py",
+    "/app/test_reports/pytest/payments_maturity.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "mark_premium_paid records due_date=policy['premium_due_date'] BEFORE updating (correct — captures the due date that was paid).",
+    "list_payments excludes _id via projection {'_id': 0} — verified no leak.",
+    "delete_insurance cascades premium_payments deletion — verified with GET returning [] after delete.",
+    "premium_payments index on policy_id created in startup — good.",
+    "server.py now 503 lines — still under 700 but growing; consider splitting into per-resource routers before next feature.",
+    "matText uses em-dash character (—) which is a single unicode char; UI rendered correctly."
+  ],
+  "updated_files": ["/app/backend/tests/test_payments_maturity.py"],
+  "success_rate": {"backend": "100%", "frontend": "100%"},
+  "test_credentials": "Master PIN: 1234",
+  "seed_data_creation": "None persisted. LIC restored to premium_due_date=2026-08-15. LIC now has 1 premium_payments record (paid_on=2026-08-02, due_date=2026-08-15, amount=25000) from the UI mark-paid flow — this history is expected/harmless. Temp policies deleted.",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Server 'today' = 2026-08-02. LIC id bc63fc20-091f-45cb-8d4c-f7c2a9ee502a: premium_due_date=2026-08-15, last_paid_on=2026-08-02, has 1 payment_history record (₹25000, due 2026-08-15) leftover from iter-7 UI test — expected. Reminder banner will show LIC due in 13 days. Maturity alerts banner will NOT show for LIC (no maturity_date). Test files: test_mark_paid.py (11), test_payments_maturity.py (6), test_documents.py, backend_test.py — run with pytest -n 0.",
+  "rca of the issue": "N/A"
+}

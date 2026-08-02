@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from "react";
-import { Plus, Pencil, Trash2, FileText, ShieldPlus, CalendarDays, User, Search, BellRing, Paperclip, Check } from "lucide-react";
+import { Plus, Pencil, Trash2, FileText, ShieldPlus, CalendarDays, User, Search, BellRing, Paperclip, Check, History, Award } from "lucide-react";
 import { toast } from "sonner";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
@@ -32,6 +32,9 @@ export default function InsuranceTab() {
   const [editId, setEditId] = useState(null);
   const [deleteId, setDeleteId] = useState(null);
   const [docFor, setDocFor] = useState(null);
+  const [histFor, setHistFor] = useState(null);
+  const [payments, setPayments] = useState([]);
+  const [histLoading, setHistLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [memberSuggestions, setMemberSuggestions] = useState([]);
   const [docCounts, setDocCounts] = useState({});
@@ -77,6 +80,28 @@ export default function InsuranceTab() {
     } catch (e) {
       toast.error(errDetail(e));
     }
+  };
+
+  const maturityAlerts = useMemo(() => {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    return items
+      .filter((i) => i.maturity_date)
+      .map((i) => ({ ...i, days: Math.round((new Date(i.maturity_date) - today) / 86400000) }))
+      .filter((i) => i.days <= 60)
+      .sort((a, b) => a.days - b.days);
+  }, [items]);
+
+  const matText = (d) =>
+    d < 0 ? "Matured — claim now!" : d === 0 ? "Matures today" : `Matures in ${d} day${d > 1 ? "s" : ""}`;
+
+  const openHistory = (item) => {
+    setHistFor(item);
+    setHistLoading(true);
+    api
+      .get(`/insurance/${item.id}/payments`)
+      .then(({ data }) => setPayments(data))
+      .finally(() => setHistLoading(false));
   };
 
   const openAdd = () => {
@@ -186,6 +211,27 @@ export default function InsuranceTab() {
         </div>
       )}
 
+      {maturityAlerts.length > 0 && (
+        <div className="mt-4 bg-indigo-50 border border-indigo-200 rounded-2xl p-4" data-testid="maturity-alerts">
+          <p className="text-sm font-semibold text-indigo-800 flex items-center gap-2 mb-2">
+            <Award className="w-4 h-4" /> Maturity Alerts
+          </p>
+          <div className="space-y-2">
+            {maturityAlerts.map((r) => (
+              <div key={r.id} className="flex items-center justify-between text-sm" data-testid={`maturity-alert-${r.id}`}>
+                <span className="text-slate-700 truncate">
+                  {r.company_name}
+                  {r.member_name ? ` · ${r.member_name}` : ""}
+                </span>
+                <span className={`font-medium whitespace-nowrap ml-2 ${r.days < 0 ? "text-rose-600" : "text-indigo-700"}`}>
+                  {inr(r.maturity_amount)} · {matText(r.days)}
+                </span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
       <div className="mt-5 space-y-3 md:space-y-0 md:grid md:grid-cols-2 md:gap-4 md:items-start">
         {loading && <p className="text-sm text-slate-400 text-center py-10 md:col-span-2">Loading...</p>}
         {!loading && visible.length === 0 && (
@@ -222,6 +268,14 @@ export default function InsuranceTab() {
                 )}
               </div>
               <div className="flex gap-1">
+                <button
+                  data-testid={`history-insurance-${item.id}`}
+                  aria-label="Payment history"
+                  onClick={() => openHistory(item)}
+                  className="w-9 h-9 rounded-full flex items-center justify-center text-slate-400 hover:bg-slate-100 hover:text-slate-700 active:scale-95 transition-colors"
+                >
+                  <History className="w-4 h-4" />
+                </button>
                 <button
                   data-testid={`docs-insurance-${item.id}`}
                   aria-label="Documents"
@@ -479,6 +533,44 @@ export default function InsuranceTab() {
         parentId={docFor?.id}
         title={docFor?.title}
       />
+
+      <Dialog open={!!histFor} onOpenChange={(o) => !o && setHistFor(null)}>
+        <DialogContent className="max-w-md rounded-2xl">
+          <DialogHeader>
+            <DialogTitle className="font-heading flex items-center gap-2">
+              <History className="w-4 h-4" /> Payment History
+            </DialogTitle>
+            <DialogDescription>
+              {histFor?.company_name} {histFor?.plan_name ? `— ${histFor.plan_name}` : ""}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-2 max-h-[50vh] overflow-y-auto">
+            {histLoading && <p className="text-sm text-slate-400 text-center py-6">Loading...</p>}
+            {!histLoading && payments.length === 0 && (
+              <div className="text-center py-8" data-testid="payments-empty-state">
+                <History className="w-8 h-8 text-slate-300 mx-auto mb-2" />
+                <p className="text-sm text-slate-500">No payments recorded yet. Tap "Paid" on a reminder to record one.</p>
+              </div>
+            )}
+            {payments.map((p) => (
+              <div
+                key={p.id}
+                data-testid={`payment-row-${p.id}`}
+                className="flex items-center gap-3 bg-slate-50 rounded-xl px-3 py-2.5"
+              >
+                <div className="w-8 h-8 rounded-full bg-emerald-100 text-emerald-600 flex items-center justify-center shrink-0">
+                  <Check className="w-4 h-4" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-medium text-slate-900">{inr(p.amount)}</p>
+                  <p className="text-xs text-slate-500">For due date: {p.due_date || "—"}</p>
+                </div>
+                <p className="text-xs text-slate-500 whitespace-nowrap">Paid {p.paid_on}</p>
+              </div>
+            ))}
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
