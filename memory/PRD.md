@@ -62,13 +62,17 @@
 - Undo Paid: toast Undo action + Undo button on newest history row; POST /api/insurance/{id}/undo-paid restores due date & last_paid_on, deletes payment record
 - Yearly Premium Total: annualized summary card on Insurance tab (Yearly ×1, Half-Yearly ×2, Quarterly ×4, Monthly ×12) with member-wise breakdown
 
+### Iteration 9 (fork)
+- Password History: changing a login's password stores the old one (encrypted, last 5, deduped) in password_history; GET /api/credentials/{id}/password-history returns decrypted newest-first; History (clock) button on login cards opens dialog with show/hide + copy per row; excluded from list endpoint (no leak)
+- Card Expiry Alerts: amber "Card Expiry Alerts" banner on Cards tab for cards expiring within 60 days (rose "Expired N days ago" if past); SOON/EXPIRED badge next to expiry on card tile
+- Verified pre-existing Password Generator (16-char, Generate button in login form) still works
+
 ## Testing
 - Iteration 1: 100% pass backend (8/8 pytest) + all frontend flows (see /app/test_reports/iteration_1.json)
+- Iteration 11: 91/91 backend pytest + 100% frontend (password history, expiry alerts, generator) — /app/test_reports/iteration_11.json
 - Master PIN for testing: 1234 (see /app/memory/test_credentials.md)
 
 ## Backlog
-- P1: Change PIN UI (backend endpoint `/api/auth/change-pin` already exists)
-- P1: Auto-lock after inactivity timeout
 - P2: Export/backup vault (encrypted file)
-- P2: Premium due-date reminders for insurance
-- P2: Card details section (card number, expiry, CVV)
+- P2: Duplicate/weak password health check across logins
+- P2: Biometric unlock (WebAuthn) for PWA

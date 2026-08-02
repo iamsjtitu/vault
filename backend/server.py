@@ -220,7 +220,7 @@ async def change_pin(body: ChangePinInput, _: str = Depends(require_auth)):
 
 @api_router.get("/credentials", response_model=List[Credential])
 async def list_credentials(_: str = Depends(require_auth)):
-    docs = await db.credentials.find({}, {"_id": 0}).sort("created_at", -1).to_list(1000)
+    docs = await db.credentials.find({}, {"_id": 0, "password_history": 0}).sort("created_at", -1).to_list(1000)
     for d in docs:
         if d.get("password"):
             d["password"] = fernet.decrypt(d["password"].encode()).decode()
