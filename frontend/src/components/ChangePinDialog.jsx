@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import api, { errDetail } from "@/lib/api";
 
-export default function ChangePinDialog({ open, onOpenChange }) {
+export default function ChangePinDialog({ open, onOpenChange, lockMinutes, onLockMinutesChange }) {
   const [oldPin, setOldPin] = useState("");
   const [newPin, setNewPin] = useState("");
   const [confirmPin, setConfirmPin] = useState("");
@@ -40,10 +40,31 @@ export default function ChangePinDialog({ open, onOpenChange }) {
     <Dialog open={open} onOpenChange={(o) => { if (!o) reset(); onOpenChange(o); }}>
       <DialogContent className="max-w-sm rounded-2xl">
         <DialogHeader>
-          <DialogTitle className="font-heading">Change Master PIN</DialogTitle>
-          <DialogDescription>Enter your current PIN and choose a new 4-digit PIN.</DialogDescription>
+          <DialogTitle className="font-heading">Settings</DialogTitle>
+          <DialogDescription>Auto-lock timing aur Master PIN yahan se manage karo.</DialogDescription>
         </DialogHeader>
         <div className="space-y-4">
+          <div className="space-y-2">
+            <Label>Auto-Lock After (inactivity)</Label>
+            <div className="flex gap-2">
+              {[2, 5, 10].map((m) => (
+                <button
+                  key={m}
+                  type="button"
+                  data-testid={`lock-time-${m}`}
+                  onClick={() => onLockMinutesChange(m)}
+                  className={`flex-1 py-2 rounded-full text-sm font-medium transition-colors active:scale-95 ${
+                    lockMinutes === m ? "bg-slate-900 text-white" : "bg-slate-100 text-slate-600 hover:bg-slate-200"
+                  }`}
+                >
+                  {m} min
+                </button>
+              ))}
+            </div>
+          </div>
+          <div className="border-t border-slate-200 pt-4">
+            <p className="text-sm font-medium text-slate-900 mb-3">Change Master PIN</p>
+          </div>
           <div className="space-y-1.5">
             <Label>Current PIN</Label>
             <Input

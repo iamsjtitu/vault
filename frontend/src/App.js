@@ -9,12 +9,17 @@ import InsuranceTab from "@/components/InsuranceTab";
 import CardsTab from "@/components/CardsTab";
 import ChangePinDialog from "@/components/ChangePinDialog";
 
-const AUTO_LOCK_MS = 5 * 60 * 1000;
-
 function App() {
   const [phase, setPhase] = useState("loading"); // loading | setup | locked | unlocked
   const [tab, setTab] = useState("logins");
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [lockMinutes, setLockMinutes] = useState(() => Number(localStorage.getItem("vault_lock_minutes")) || 5);
+
+  const changeLockMinutes = (m) => {
+    setLockMinutes(m);
+    localStorage.setItem("vault_lock_minutes", m);
+    toast.success(`Auto-lock set to ${m} minutes`);
+  };
 
   const lock = useCallback(() => {
     clearToken();
@@ -45,7 +50,7 @@ function App() {
       timer = setTimeout(() => {
         lock();
         toast.info("Vault locked due to inactivity");
-      }, AUTO_LOCK_MS);
+      }, lockMinutes * 60 * 1000);
     };
     const events = ["mousedown", "keydown", "touchstart", "scroll"];
     events.forEach((e) => window.addEventListener(e, reset, { passive: true }));
@@ -54,7 +59,7 @@ function App() {
       clearTimeout(timer);
       events.forEach((e) => window.removeEventListener(e, reset));
     };
-  }, [phase, lock]);
+  }, [phase, lock, lockMinutes]);
 
   useEffect(() => {
     api
@@ -157,7 +162,12 @@ function App() {
           <Lock className="w-3 h-3" /> Passwords encrypted at rest
         </footer>
       </div>
-      <ChangePinDialog open={settingsOpen} onOpenChange={setSettingsOpen} />
+      <ChangePinDialog
+        open={settingsOpen}
+        onOpenChange={setSettingsOpen}
+        lockMinutes={lockMinutes}
+        onLockMinutesChange={changeLockMinutes}
+      />
       <Toaster position="top-center" richColors />
     </div>
   );
