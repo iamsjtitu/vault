@@ -1,16 +1,55 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { toast } from "sonner";
+import { Fingerprint } from "lucide-react";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import api, { setToken, errDetail } from "@/lib/api";
+import { biometricSupported, registerPasskey } from "@/lib/webauthn";
 
 export default function ChangePinDialog({ open, onOpenChange, lockMinutes, onLockMinutesChange }) {
   const [oldPin, setOldPin] = useState("");
   const [newPin, setNewPin] = useState("");
   const [confirmPin, setConfirmPin] = useState("");
   const [saving, setSaving] = useState(false);
+  const [bioEnabled, setBioEnabled] = useState(false);
+  const [bioBusy, setBioBusy] = useState(false);
+  const bioSupported = biometricSupported();
+
+  useEffect(() => {
+    if (open && bioSupported) {
+      api.get("/webauthn/status").then(({ data }) => setBioEnabled(data.enabled)).catch(() => {});
+    }
+  }, [open, bioSupported]);
+
+  const enableBio = async () => {
+    setBioBusy(true);
+    try {
+      await registerPasskey();
+      setBioEnabled(true);
+      toast.success("Biometric unlock enabled on this device");
+    } catch (e) {
+      if (e?.name !== "NotAllowedError" && e?.name !== "AbortError") {
+        toast.error(e?.response ? errDetail(e) : "Could not enable biometric unlock");
+      }
+    } finally {
+      setBioBusy(false);
+    }
+  };
+
+  const disableBio = async () => {
+    setBioBusy(true);
+    try {
+      await api.delete("/webauthn/credentials");
+      setBioEnabled(false);
+      toast.success("Biometric unlock disabled");
+    } catch (e) {
+      toast.error(errDetail(e));
+    } finally {
+      setBioBusy(false);
+    }
+  };
 
   const digits = (v) => v.replace(/\D/g, "").slice(0, 4);
 
@@ -67,6 +106,45 @@ export default function ChangePinDialog({ open, onOpenChange, lockMinutes, onLoc
                 </button>
               ))}
             </div>
+          </div>
+          <div className="border-t border-slate-200 pt-4 space-y-2">
+            <Label className="flex items-center gap-1.5">
+              <Fingerprint className="w-4 h-4 text-emerald-600" /> Biometric Unlock
+            </Label>
+            {!bioSupported ? (
+              <p className="text-xs text-slate-400" data-testid="biometric-unsupported">
+                Is browser me fingerprint/face unlock supported nahi hai.
+              </p>
+            ) : bioEnabled ? (
+              <div className="flex items-center justify-between gap-2">
+                <p className="text-xs text-slate-500">Is device pe enabled hai</p>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  data-testid="biometric-disable-button"
+                  onClick={disableBio}
+                  disabled={bioBusy}
+                  className="rounded-full text-rose-600 border-rose-200 hover:bg-rose-50"
+                >
+                  {bioBusy ? "..." : "Disable"}
+                </Button>
+              </div>
+            ) : (
+              <div className="flex items-center justify-between gap-2">
+                <p className="text-xs text-slate-500">Fingerprint/face se vault unlock karo</p>
+                <Button
+                  type="button"
+                  size="sm"
+                  data-testid="biometric-enable-button"
+                  onClick={enableBio}
+                  disabled={bioBusy}
+                  className="rounded-full bg-emerald-600 hover:bg-emerald-700"
+                >
+                  {bioBusy ? "Waiting..." : "Enable"}
+                </Button>
+              </div>
+            )}
           </div>
           <div className="border-t border-slate-200 pt-4">
             <p className="text-sm font-medium text-slate-900 mb-3">Change Master PIN</p>

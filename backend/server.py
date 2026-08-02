@@ -7,6 +7,9 @@ load_dotenv(ROOT_DIR / '.env')
 import os
 import re
 import uuid
+import json
+import base64
+import secrets
 import logging
 from datetime import datetime, timezone, timedelta, date
 from typing import List, Optional
@@ -20,6 +23,16 @@ from fastapi.responses import Response
 from starlette.middleware.cors import CORSMiddleware
 from motor.motor_asyncio import AsyncIOMotorClient, AsyncIOMotorGridFSBucket
 from pydantic import BaseModel, Field, ConfigDict
+from webauthn import (
+    generate_registration_options, verify_registration_response,
+    generate_authentication_options, verify_authentication_response,
+)
+from webauthn.helpers import options_to_json, base64url_to_bytes
+from webauthn.helpers.structs import (
+    AuthenticatorSelectionCriteria, AuthenticatorAttachment,
+    ResidentKeyRequirement, UserVerificationRequirement,
+    PublicKeyCredentialDescriptor,
+)
 
 mongo_url = os.environ['MONGO_URL']
 client = AsyncIOMotorClient(mongo_url)
@@ -214,6 +227,167 @@ async def change_pin(body: ChangePinInput, _: str = Depends(require_auth)):
         {"$set": {"pin_hash": hash_pin(body.new_pin)}, "$inc": {"token_ver": 1}},
     )
     return {"message": "PIN changed"}
+
+
+# ---------- Biometric (WebAuthn) ----------
+
+def b64url(data: bytes) -> str:
+    return base64.urlsafe_b64encode(data).rstrip(b"=").decode()
+
+
+def external_host(request: Request) -> str:
+    fwd = request.headers.get("x-forwarded-host", "")
+    host = fwd.split(",")[0].strip() if fwd else request.headers.get("host", "")
+    return host.split(":")[0]
+
+
+def webauthn_rp(request: Request) -> tuple:
+    host = external_host(request)
+    raw_host = (request.headers.get("host", "") or "").split(":")[0]
+    origin_hdr = request.headers.get("origin", "")
+    o_host = origin_hdr.split("://")[-1].split(":")[0] if origin_hdr else ""
+    if not host or not origin_hdr or o_host not in (host, raw_host):
+        raise HTTPException(status_code=403, detail="Cross-origin biometric request not allowed")
+    if host in ("localhost", "127.0.0.1"):
+        expected_origins = [f"http://{host}", f"http://{host}:3000", f"https://{host}"]
+    else:
+        expected_origins = [f"https://{host}"]
+    return expected_origins, host
+
+
+async def store_challenge(kind: str, rp_id: str, challenge: bytes):
+    await db.webauthn_challenges.update_one(
+        {"kind": kind, "rp_id": rp_id},
+        {"$set": {
+            "challenge": b64url(challenge),
+            "expires_at": (datetime.now(timezone.utc) + timedelta(minutes=2)).isoformat(),
+        }},
+        upsert=True,
+    )
+
+
+async def pop_challenge(kind: str, rp_id: str) -> bytes:
+    doc = await db.webauthn_challenges.find_one_and_delete({"kind": kind, "rp_id": rp_id})
+    if not doc or doc["expires_at"] < datetime.now(timezone.utc).isoformat():
+        raise HTTPException(status_code=400, detail="Challenge expired, try again")
+    return base64url_to_bytes(doc["challenge"])
+
+
+@api_router.get("/webauthn/status")
+async def webauthn_status(request: Request):
+    host = external_host(request)
+    count = await db.webauthn_credentials.count_documents({"rp_id": host})
+    return {"enabled": count > 0, "count": count}
+
+
+@api_router.post("/webauthn/register/options")
+async def webauthn_register_options(request: Request, _: str = Depends(require_auth)):
+    origin, rp_id = webauthn_rp(request)
+    existing = await db.webauthn_credentials.find({"rp_id": rp_id}).to_list(20)
+    options = generate_registration_options(
+        rp_id=rp_id,
+        rp_name="MyVault",
+        user_id=b"vault_owner",
+        user_name="MyVault Owner",
+        user_display_name="MyVault Owner",
+        challenge=secrets.token_bytes(32),
+        exclude_credentials=[
+            PublicKeyCredentialDescriptor(id=base64url_to_bytes(c["credential_id"])) for c in existing
+        ],
+        authenticator_selection=AuthenticatorSelectionCriteria(
+            authenticator_attachment=AuthenticatorAttachment.PLATFORM,
+            resident_key=ResidentKeyRequirement.PREFERRED,
+            user_verification=UserVerificationRequirement.REQUIRED,
+        ),
+    )
+    await store_challenge("register", rp_id, options.challenge)
+    return json.loads(options_to_json(options))
+
+
+@api_router.post("/webauthn/register/verify")
+async def webauthn_register_verify(request: Request, _: str = Depends(require_auth)):
+    origin, rp_id = webauthn_rp(request)
+    body = await request.json()
+    challenge = await pop_challenge("register", rp_id)
+    try:
+        v = verify_registration_response(
+            credential=body,
+            expected_challenge=challenge,
+            expected_rp_id=rp_id,
+            expected_origin=origin,
+            require_user_verification=True,
+        )
+    except Exception:
+        raise HTTPException(status_code=400, detail="Biometric registration failed, try again")
+    await db.webauthn_credentials.update_one(
+        {"credential_id": b64url(v.credential_id), "rp_id": rp_id},
+        {"$set": {
+            "public_key": b64url(v.credential_public_key),
+            "sign_count": v.sign_count,
+            "device_type": str(getattr(v.credential_device_type, "value", v.credential_device_type)),
+            "backed_up": v.credential_backed_up,
+            "created_at": datetime.now(timezone.utc).isoformat(),
+        }},
+        upsert=True,
+    )
+    return {"enabled": True}
+
+
+@api_router.post("/webauthn/auth/options")
+async def webauthn_auth_options(request: Request):
+    origin, rp_id = webauthn_rp(request)
+    creds = await db.webauthn_credentials.find({"rp_id": rp_id}).to_list(20)
+    if not creds:
+        raise HTTPException(status_code=404, detail="Biometric unlock not set up on this device")
+    options = generate_authentication_options(
+        rp_id=rp_id,
+        challenge=secrets.token_bytes(32),
+        allow_credentials=[
+            PublicKeyCredentialDescriptor(id=base64url_to_bytes(c["credential_id"])) for c in creds
+        ],
+        user_verification=UserVerificationRequirement.REQUIRED,
+    )
+    await store_challenge("auth", rp_id, options.challenge)
+    return json.loads(options_to_json(options))
+
+
+@api_router.post("/webauthn/auth/verify")
+async def webauthn_auth_verify(request: Request):
+    origin, rp_id = webauthn_rp(request)
+    body = await request.json()
+    cred = await db.webauthn_credentials.find_one({"credential_id": body.get("id", ""), "rp_id": rp_id})
+    if not cred:
+        raise HTTPException(status_code=401, detail="Unknown biometric credential")
+    challenge = await pop_challenge("auth", rp_id)
+    try:
+        v = verify_authentication_response(
+            credential=body,
+            expected_challenge=challenge,
+            expected_rp_id=rp_id,
+            expected_origin=origin,
+            credential_public_key=base64url_to_bytes(cred["public_key"]),
+            credential_current_sign_count=cred["sign_count"],
+            require_user_verification=True,
+        )
+    except Exception:
+        raise HTTPException(status_code=401, detail="Biometric unlock failed")
+    result = await db.webauthn_credentials.update_one(
+        {"_id": cred["_id"], "sign_count": cred["sign_count"]},
+        {"$set": {"sign_count": v.new_sign_count, "last_used": datetime.now(timezone.utc).isoformat()}},
+    )
+    if result.modified_count != 1 and v.new_sign_count > 0:
+        raise HTTPException(status_code=401, detail="Stale assertion, try again")
+    vault = await db.vault_config.find_one({"key": "master_pin"})
+    if not vault:
+        raise HTTPException(status_code=400, detail="PIN not set yet")
+    return {"token": create_token(int(vault.get("token_ver", 0)))}
+
+
+@api_router.delete("/webauthn/credentials")
+async def webauthn_disable(request: Request, _: str = Depends(require_auth)):
+    host = external_host(request)
+    result = await db.webauthn_credentials.delete_many({"rp_id": host})
+    return {"deleted": result.deleted_count}
 
 
 # ---------- Credentials ----------
@@ -588,6 +762,8 @@ async def create_indexes():
     await db.documents.create_index([("parent_type", 1), ("parent_id", 1)])
     await db.premium_payments.create_index("policy_id")
     await db.login_attempts.create_index("identifier")
+    await db.webauthn_credentials.create_index([("credential_id", 1), ("rp_id", 1)], unique=True)
+    await db.webauthn_challenges.create_index([("kind", 1), ("rp_id", 1)])
 
 
 @app.on_event("shutdown")

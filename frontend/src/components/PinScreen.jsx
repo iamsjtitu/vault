@@ -1,7 +1,8 @@
 import { useState, useEffect } from "react";
-import { Delete, ShieldCheck } from "lucide-react";
+import { Delete, ShieldCheck, Fingerprint } from "lucide-react";
 import { toast } from "sonner";
 import api, { setToken, errDetail } from "@/lib/api";
+import { biometricSupported, unlockWithPasskey } from "@/lib/webauthn";
 
 const PIN_LENGTH = 4;
 
@@ -10,6 +11,29 @@ export default function PinScreen({ mode, onUnlock }) {
   const [firstPin, setFirstPin] = useState(null);
   const [shake, setShake] = useState(false);
   const [busy, setBusy] = useState(false);
+  const [bioAvailable, setBioAvailable] = useState(false);
+
+  useEffect(() => {
+    if (mode === "locked" && biometricSupported()) {
+      api.get("/webauthn/status").then(({ data }) => setBioAvailable(data.enabled)).catch(() => {});
+    }
+  }, [mode]);
+
+  const bioUnlock = async () => {
+    if (busy) return;
+    setBusy(true);
+    try {
+      const token = await unlockWithPasskey();
+      setToken(token);
+      onUnlock();
+    } catch (e) {
+      if (e?.name !== "NotAllowedError" && e?.name !== "AbortError") {
+        toast.error(e?.response ? errDetail(e) : "Biometric unlock failed");
+      }
+    } finally {
+      setBusy(false);
+    }
+  };
 
   const isSetup = mode === "setup";
   const title = isSetup ? (firstPin ? "Confirm your PIN" : "Create a Master PIN") : "Enter your PIN";
@@ -116,6 +140,18 @@ export default function PinScreen({ mode, onUnlock }) {
             <Delete className="w-6 h-6" />
           </button>
         </div>
+
+        {bioAvailable && (
+          <button
+            data-testid="biometric-unlock-button"
+            onClick={bioUnlock}
+            disabled={busy}
+            className="mt-8 flex items-center gap-2 px-5 py-2.5 rounded-full bg-white border border-slate-200 text-sm font-medium text-slate-700 hover:bg-slate-100 active:scale-95 transition-colors shadow-sm"
+          >
+            <Fingerprint className="w-4 h-4 text-emerald-600" />
+            Unlock with fingerprint / face
+          </button>
+        )}
       </div>
     </div>
   );
