@@ -388,6 +388,15 @@ async def list_documents(parent_type: str, parent_id: str, _: str = Depends(requ
     ).sort("created_at", -1).to_list(200)
 
 
+@api_router.get("/documents/counts")
+async def document_counts(parent_type: str, _: str = Depends(require_auth)):
+    rows = await db.documents.aggregate([
+        {"$match": {"parent_type": parent_type}},
+        {"$group": {"_id": "$parent_id", "count": {"$sum": 1}}},
+    ]).to_list(1000)
+    return {r["_id"]: r["count"] for r in rows}
+
+
 @api_router.get("/documents/{doc_id}/download")
 async def download_document(doc_id: str, _: str = Depends(require_auth)):
     doc = await db.documents.find_one({"id": doc_id})

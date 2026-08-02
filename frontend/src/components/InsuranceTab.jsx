@@ -34,10 +34,12 @@ export default function InsuranceTab() {
   const [docFor, setDocFor] = useState(null);
   const [saving, setSaving] = useState(false);
   const [memberSuggestions, setMemberSuggestions] = useState([]);
+  const [docCounts, setDocCounts] = useState({});
 
   const load = () => {
     api.get("/insurance").then(({ data }) => setItems(data)).finally(() => setLoading(false));
     api.get("/members").then(({ data }) => setMemberSuggestions(data)).catch(() => {});
+    api.get("/documents/counts", { params: { parent_type: "insurance" } }).then(({ data }) => setDocCounts(data)).catch(() => {});
   };
 
   useEffect(() => {
@@ -207,9 +209,17 @@ export default function InsuranceTab() {
                   data-testid={`docs-insurance-${item.id}`}
                   aria-label="Documents"
                   onClick={() => setDocFor({ id: item.id, title: item.company_name })}
-                  className="w-9 h-9 rounded-full flex items-center justify-center text-slate-400 hover:bg-slate-100 hover:text-slate-700 active:scale-95 transition-colors"
+                  className="relative w-9 h-9 rounded-full flex items-center justify-center text-slate-400 hover:bg-slate-100 hover:text-slate-700 active:scale-95 transition-colors"
                 >
                   <Paperclip className="w-4 h-4" />
+                  {docCounts[item.id] > 0 && (
+                    <span
+                      data-testid={`doc-count-${item.id}`}
+                      className="absolute -top-0.5 -right-0.5 min-w-[16px] h-4 px-1 rounded-full bg-blue-600 text-white text-[10px] font-semibold flex items-center justify-center"
+                    >
+                      {docCounts[item.id]}
+                    </span>
+                  )}
                 </button>
                 <button
                   data-testid={`edit-insurance-${item.id}`}
@@ -437,7 +447,12 @@ export default function InsuranceTab() {
 
       <DocumentsDialog
         open={!!docFor}
-        onOpenChange={(o) => !o && setDocFor(null)}
+        onOpenChange={(o) => {
+          if (!o) {
+            setDocFor(null);
+            load();
+          }
+        }}
         parentType="insurance"
         parentId={docFor?.id}
         title={docFor?.title}
