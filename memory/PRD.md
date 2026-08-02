@@ -72,6 +72,7 @@
 - Bug: enabling fingerprint on Android blocked iPhone (status was domain-wide; Settings showed "enabled" with no Enable button; lock screen button appeared on devices without passkey)
 - Fix: per-device passkeys — localStorage 'vault_bio_cred' stores this device's credential id; /webauthn/status returns credential_ids[]; PinScreen button gated on deviceBioEnabled(); Settings shows per-device Enable ("N device pe enabled hai — is device pe bhi enable karo"), Disable (this device only via ?credential_id=), and "Sab devices se biometric hatao" (remove all); auth/options accepts {credential_id} to target this device's passkey
 - Tested: 9/9 backend pytest + full two-context (Android/iPhone) E2E with CDP virtual authenticators — iteration_13.json
+- Quick Unlock Prompt: lock screen pe app khulte hi biometric prompt auto-trigger hota hai (350ms delay, once per lock); cancel karne pe manual button available rehta hai. Device jo bhi support kare (fingerprint/face) WebAuthn wahi dikhata hai. Verified E2E via virtual authenticator
 
 ## Testing
 - Iteration 1: 100% pass backend (8/8 pytest) + all frontend flows (see /app/test_reports/iteration_1.json)

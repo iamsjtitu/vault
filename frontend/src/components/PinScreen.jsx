@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { Delete, ShieldCheck, Fingerprint } from "lucide-react";
 import { toast } from "sonner";
 import api, { setToken, errDetail } from "@/lib/api";
@@ -12,15 +12,9 @@ export default function PinScreen({ mode, onUnlock }) {
   const [shake, setShake] = useState(false);
   const [busy, setBusy] = useState(false);
   const [bioAvailable, setBioAvailable] = useState(false);
+  const autoTriedRef = useRef(false);
 
-  useEffect(() => {
-    if (mode === "locked" && biometricSupported()) {
-      api.get("/webauthn/status").then(({ data }) => setBioAvailable(deviceBioEnabled(data))).catch(() => {});
-    }
-  }, [mode]);
-
-  const bioUnlock = async () => {
-    if (busy) return;
+  const bioUnlock = useCallback(async () => {
     setBusy(true);
     try {
       const token = await unlockWithPasskey();
@@ -33,7 +27,23 @@ export default function PinScreen({ mode, onUnlock }) {
     } finally {
       setBusy(false);
     }
-  };
+  }, [onUnlock]);
+
+  useEffect(() => {
+    if (mode === "locked" && biometricSupported()) {
+      api
+        .get("/webauthn/status")
+        .then(({ data }) => {
+          const ok = deviceBioEnabled(data);
+          setBioAvailable(ok);
+          if (ok && !autoTriedRef.current) {
+            autoTriedRef.current = true;
+            setTimeout(bioUnlock, 350);
+          }
+        })
+        .catch(() => {});
+    }
+  }, [mode, bioUnlock]);
 
   const isSetup = mode === "setup";
   const title = isSetup ? (firstPin ? "Confirm your PIN" : "Create a Master PIN") : "Enter your PIN";
