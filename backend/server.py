@@ -323,6 +323,26 @@ async def list_payments(policy_id: str, _: str = Depends(require_auth)):
     return await db.premium_payments.find({"policy_id": policy_id}, {"_id": 0}).sort("created_at", -1).to_list(500)
 
 
+@api_router.post("/insurance/{policy_id}/undo-paid")
+async def undo_premium_paid(policy_id: str, _: str = Depends(require_auth)):
+    policy = await db.insurance.find_one({"id": policy_id}, {"_id": 0})
+    if not policy:
+        raise HTTPException(status_code=404, detail="Policy not found")
+    payment = await db.premium_payments.find_one({"policy_id": policy_id}, sort=[("created_at", -1)])
+    if not payment:
+        raise HTTPException(status_code=400, detail="No payment to undo")
+    await db.premium_payments.delete_one({"id": payment["id"]})
+    prev = await db.premium_payments.find_one({"policy_id": policy_id}, sort=[("created_at", -1)])
+    update = {
+        "premium_due_date": payment["due_date"],
+        "last_paid_on": prev["paid_on"] if prev else "",
+        "updated_at": datetime.now(timezone.utc).isoformat(),
+    }
+    await db.insurance.update_one({"id": policy_id}, {"$set": update})
+    policy.update(update)
+    return policy
+
+
 @api_router.delete("/insurance/{policy_id}")
 async def delete_insurance(policy_id: str, _: str = Depends(require_auth)):
     result = await db.insurance.delete_one({"id": policy_id})

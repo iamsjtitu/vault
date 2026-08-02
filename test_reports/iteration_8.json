@@ -1,0 +1,20 @@
+{
+  "summary": "Iteration 8: Tested Undo Paid (backend + UI) and Yearly Premium Total summary card. All backend endpoints pass (6/6). Full UI flow verified: premium-summary shows ₹25,000/yr with Father row; adding Monthly Mother 1000 → ₹37,000/yr with Mother ₹12,000/yr row; delete reverts to ₹25,000/yr. Toast Undo action works after markPaid. Payment History Undo button (top row only) restores due date and removes row. Final state: LIC due=2026-08-15 with 1 old payment record intact.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {"ui_bugs": [], "integration_issues": [], "design_issues": []},
+  "test_report_links": ["/app/backend/tests/test_undo_paid.py", "/app/test_reports/pytest/undo_paid.xml"],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "InsuranceTab.jsx is 638 lines — approaching 700-line threshold; consider splitting reminders/summary/history sub-components in a future refactor.",
+    "Payment record insert uses policy['premium_due_date'] BEFORE update as due_date field (correct for undo semantics). Verified round-trip works.",
+    "undo-paid sorts premium_payments by created_at desc — payments created within same request could theoretically tie, but insert order is sequential so this is fine in practice."
+  ],
+  "updated_files": ["/app/backend/tests/test_undo_paid.py"],
+  "success_rate": {"backend": "100%", "frontend": "100%"},
+  "test_credentials": "PIN 1234",
+  "seed_data_creation": "None; temp TEST_UICo policy created & cleaned during UI test",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Server 'today' ~2026-08-02. LIC seed intact: Father, Yearly ₹25000, due 2026-08-15, 1 payment record (paid 2026-08-02), 1 attached doc, PIN 1234. Undo-paid endpoint at POST /api/insurance/{id}/undo-paid works correctly (400 no-payment, 404 unknown, 401 no-auth). Frontend premium-summary card uses data-testids: premium-summary, premium-total, premium-member-{lowercase name}. History dialog Undo button only shows on newest row (idx===0).",
+  "rca_of_the_issue": "N/A - all features verified working"
+}

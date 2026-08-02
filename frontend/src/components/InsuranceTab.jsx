@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from "react";
-import { Plus, Pencil, Trash2, FileText, ShieldPlus, CalendarDays, User, Search, BellRing, Paperclip, Check, History, Award } from "lucide-react";
+import { Plus, Pencil, Trash2, FileText, ShieldPlus, CalendarDays, User, Search, BellRing, Paperclip, Check, History, Award, Wallet, Undo2 } from "lucide-react";
 import { toast } from "sonner";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
@@ -22,6 +22,8 @@ const EMPTY = {
 
 const inr = (n) =>
   n == null || n === "" ? "—" : `₹${Number(n).toLocaleString("en-IN")}`;
+
+const FREQ_MULT = { Yearly: 1, "Half-Yearly": 2, Quarterly: 4, Monthly: 12, "One-time": 0 };
 
 export default function InsuranceTab() {
   const [items, setItems] = useState([]);
@@ -75,12 +77,38 @@ export default function InsuranceTab() {
   const markPaid = async (r) => {
     try {
       const { data } = await api.post(`/insurance/${r.id}/mark-paid`);
-      toast.success(data.premium_due_date ? `Paid! Next due: ${data.premium_due_date}` : "Marked paid");
+      toast.success(data.premium_due_date ? `Paid! Next due: ${data.premium_due_date}` : "Marked paid", {
+        action: { label: "Undo", onClick: () => undoPaid(r.id) },
+      });
       load();
     } catch (e) {
       toast.error(errDetail(e));
     }
   };
+
+  const undoPaid = async (policyId, refreshHist = false) => {
+    try {
+      await api.post(`/insurance/${policyId}/undo-paid`);
+      toast.success("Undone — due date restored");
+      load();
+      if (refreshHist && histFor) openHistory(histFor);
+    } catch (e) {
+      toast.error(errDetail(e));
+    }
+  };
+
+  const premiumSummary = useMemo(() => {
+    const byMember = {};
+    let total = 0;
+    items.forEach((i) => {
+      const yearly = (i.premium_amount || 0) * (FREQ_MULT[i.premium_frequency] ?? 1);
+      if (!yearly) return;
+      total += yearly;
+      const key = i.member_name || "Unassigned";
+      byMember[key] = (byMember[key] || 0) + yearly;
+    });
+    return { total, byMember: Object.entries(byMember).sort((a, b) => b[1] - a[1]) };
+  }, [items]);
 
   const maturityAlerts = useMemo(() => {
     const today = new Date();
@@ -229,6 +257,31 @@ export default function InsuranceTab() {
               </div>
             ))}
           </div>
+        </div>
+      )}
+
+      {premiumSummary.total > 0 && (
+        <div className="mt-4 bg-white border border-slate-200 rounded-2xl p-4 shadow-sm" data-testid="premium-summary">
+          <div className="flex items-center justify-between">
+            <p className="text-sm font-semibold text-slate-700 flex items-center gap-2">
+              <Wallet className="w-4 h-4" /> Yearly Premium Total
+            </p>
+            <p className="font-heading font-semibold text-lg text-slate-900" data-testid="premium-total">
+              {inr(premiumSummary.total)}<span className="text-xs font-normal text-slate-400">/yr</span>
+            </p>
+          </div>
+          {premiumSummary.byMember.length > 0 && (
+            <div className="mt-2 space-y-1.5">
+              {premiumSummary.byMember.map(([member, amt]) => (
+                <div key={member} className="flex items-center justify-between text-sm" data-testid={`premium-member-${member.toLowerCase()}`}>
+                  <span className="text-slate-500 flex items-center gap-1.5">
+                    <User className="w-3 h-3" /> {member}
+                  </span>
+                  <span className="font-medium text-slate-700">{inr(amt)}/yr</span>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
       )}
 
@@ -552,7 +605,7 @@ export default function InsuranceTab() {
                 <p className="text-sm text-slate-500">No payments recorded yet. Tap "Paid" on a reminder to record one.</p>
               </div>
             )}
-            {payments.map((p) => (
+            {payments.map((p, idx) => (
               <div
                 key={p.id}
                 data-testid={`payment-row-${p.id}`}
@@ -566,6 +619,15 @@ export default function InsuranceTab() {
                   <p className="text-xs text-slate-500">For due date: {p.due_date || "—"}</p>
                 </div>
                 <p className="text-xs text-slate-500 whitespace-nowrap">Paid {p.paid_on}</p>
+                {idx === 0 && (
+                  <button
+                    data-testid={`undo-payment-${p.id}`}
+                    onClick={() => undoPaid(histFor.id, true)}
+                    className="h-7 px-2.5 rounded-full bg-slate-200 text-slate-700 text-xs font-medium hover:bg-slate-300 active:scale-95 transition-colors flex items-center gap-1 shrink-0"
+                  >
+                    <Undo2 className="w-3 h-3" /> Undo
+                  </button>
+                )}
               </div>
             ))}
           </div>
