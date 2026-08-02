@@ -66,13 +66,15 @@
 - Password History: changing a login's password stores the old one (encrypted, last 5, deduped) in password_history; GET /api/credentials/{id}/password-history returns decrypted newest-first; History (clock) button on login cards opens dialog with show/hide + copy per row; excluded from list endpoint (no leak)
 - Card Expiry Alerts: amber "Card Expiry Alerts" banner on Cards tab for cards expiring within 60 days (rose "Expired N days ago" if past); SOON/EXPIRED badge next to expiry on card tile
 - Verified pre-existing Password Generator (16-char, Generate button in login form) still works
+- Biometric Unlock (WebAuthn passkeys): Settings → Enable registers a platform passkey (fingerprint/Face ID); lock screen shows "Unlock with fingerprint / face" button when enabled; Disable removes credentials. Backend: /api/webauthn/status|register/options|register/verify|auth/options|auth/verify|credentials(DELETE). RP ID from x-forwarded-host (preview proxy) fallback host header (VPS nginx). Per-domain credentials (preview & VPS separate). 8 pytest crypto tests (tests/test_webauthn.py) incl. replay/tamper/cross-origin rejection
 
 ## Testing
 - Iteration 1: 100% pass backend (8/8 pytest) + all frontend flows (see /app/test_reports/iteration_1.json)
 - Iteration 11: 91/91 backend pytest + 100% frontend (password history, expiry alerts, generator) — /app/test_reports/iteration_11.json
+- Iteration 12: Biometric Unlock 8/8 backend + 100% frontend E2E via Playwright CDP virtual authenticator — /app/test_reports/iteration_12.json
 - Master PIN for testing: 1234 (see /app/memory/test_credentials.md)
 
 ## Backlog
 - P2: Export/backup vault (encrypted file)
 - P2: Duplicate/weak password health check across logins
-- P2: Biometric unlock (WebAuthn) for PWA
+- P2: Push/local notifications for card expiry & premium due
