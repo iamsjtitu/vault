@@ -58,6 +58,10 @@
 - Payment History: mark-paid records in premium_payments (amount, paid_on, due date paid); GET /api/insurance/{id}/payments; History button + dialog on insurance cards; cascade delete with policy
 - Maturity Alerts: indigo banner for policies maturing within 60 days (or matured — rose "claim now")
 
+### June 2026 — Iteration 8
+- Undo Paid: toast Undo action + Undo button on newest history row; POST /api/insurance/{id}/undo-paid restores due date & last_paid_on, deletes payment record
+- Yearly Premium Total: annualized summary card on Insurance tab (Yearly ×1, Half-Yearly ×2, Quarterly ×4, Monthly ×12) with member-wise breakdown
+
 ## Testing
 - Iteration 1: 100% pass backend (8/8 pytest) + all frontend flows (see /app/test_reports/iteration_1.json)
 - Master PIN for testing: 1234 (see /app/memory/test_credentials.md)
