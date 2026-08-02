@@ -50,6 +50,10 @@
 - Settings: auto-lock time selector (2/5/10 min, localStorage)
 - VPS nginx client_max_body_size 15M (live + setup script)
 
+### June 2026 — Iteration 6
+- Attachment count badge on paperclip (all tabs, GET /api/documents/counts, refreshes on dialog close)
+- Mark Premium Paid: green Paid button in reminder rows → POST /api/insurance/{id}/mark-paid advances due date by frequency (month-end safe), sets last_paid_on shown on card
+
 ## Testing
 - Iteration 1: 100% pass backend (8/8 pytest) + all frontend flows (see /app/test_reports/iteration_1.json)
 - Master PIN for testing: 1234 (see /app/memory/test_credentials.md)
