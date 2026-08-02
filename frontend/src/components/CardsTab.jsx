@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from "react";
-import { Plus, Pencil, Trash2, Copy, Eye, EyeOff, CreditCard, Wifi, Users } from "lucide-react";
+import { Plus, Pencil, Trash2, Copy, Eye, EyeOff, CreditCard, Wifi, Users, Paperclip } from "lucide-react";
 import { toast } from "sonner";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
@@ -12,6 +12,7 @@ import {
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import api, { errDetail } from "@/lib/api";
+import DocumentsDialog from "@/components/DocumentsDialog";
 
 const EMPTY = {
   bank_name: "", card_name: "", card_type: "Debit", member_name: "", card_number: "",
@@ -40,6 +41,7 @@ export default function CardsTab() {
   const [form, setForm] = useState(EMPTY);
   const [editId, setEditId] = useState(null);
   const [deleteId, setDeleteId] = useState(null);
+  const [docFor, setDocFor] = useState(null);
   const [reveal, setReveal] = useState({});
   const [saving, setSaving] = useState(false);
   const [memberSuggestions, setMemberSuggestions] = useState([]);
@@ -197,6 +199,14 @@ export default function CardsTab() {
                 <Copy className="w-3.5 h-3.5" /> Copy No.
               </button>
               <div className="flex-1" />
+              <button
+                data-testid={`docs-card-${item.id}`}
+                aria-label="Documents"
+                onClick={() => setDocFor({ id: item.id, title: item.bank_name })}
+                className="w-8 h-8 rounded-full flex items-center justify-center text-slate-400 hover:bg-slate-100 hover:text-slate-700 active:scale-95 transition-colors"
+              >
+                <Paperclip className="w-4 h-4" />
+              </button>
               <button
                 data-testid={`edit-card-${item.id}`}
                 aria-label="Edit card"
@@ -381,6 +391,14 @@ export default function CardsTab() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      <DocumentsDialog
+        open={!!docFor}
+        onOpenChange={(o) => !o && setDocFor(null)}
+        parentType="card"
+        parentId={docFor?.id}
+        title={docFor?.title}
+      />
     </div>
   );
 }

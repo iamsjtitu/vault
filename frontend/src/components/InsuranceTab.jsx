@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from "react";
-import { Plus, Pencil, Trash2, FileText, ShieldPlus, CalendarDays, User, Search, BellRing } from "lucide-react";
+import { Plus, Pencil, Trash2, FileText, ShieldPlus, CalendarDays, User, Search, BellRing, Paperclip } from "lucide-react";
 import { toast } from "sonner";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
@@ -12,6 +12,7 @@ import {
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import api, { errDetail } from "@/lib/api";
+import DocumentsDialog from "@/components/DocumentsDialog";
 
 const EMPTY = {
   company_name: "", plan_name: "", policy_number: "", member_name: "", premium_amount: "",
@@ -30,6 +31,7 @@ export default function InsuranceTab() {
   const [form, setForm] = useState(EMPTY);
   const [editId, setEditId] = useState(null);
   const [deleteId, setDeleteId] = useState(null);
+  const [docFor, setDocFor] = useState(null);
   const [saving, setSaving] = useState(false);
   const [memberSuggestions, setMemberSuggestions] = useState([]);
 
@@ -201,6 +203,14 @@ export default function InsuranceTab() {
                 )}
               </div>
               <div className="flex gap-1">
+                <button
+                  data-testid={`docs-insurance-${item.id}`}
+                  aria-label="Documents"
+                  onClick={() => setDocFor({ id: item.id, title: item.company_name })}
+                  className="w-9 h-9 rounded-full flex items-center justify-center text-slate-400 hover:bg-slate-100 hover:text-slate-700 active:scale-95 transition-colors"
+                >
+                  <Paperclip className="w-4 h-4" />
+                </button>
                 <button
                   data-testid={`edit-insurance-${item.id}`}
                   aria-label="Edit policy"
@@ -424,6 +434,14 @@ export default function InsuranceTab() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      <DocumentsDialog
+        open={!!docFor}
+        onOpenChange={(o) => !o && setDocFor(null)}
+        parentType="insurance"
+        parentId={docFor?.id}
+        title={docFor?.title}
+      />
     </div>
   );
 }

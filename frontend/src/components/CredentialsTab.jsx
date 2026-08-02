@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo } from "react";
 import {
   Landmark, Mail, Users, CreditCard, Globe, Plus, Search, Copy, Eye, EyeOff,
-  Pencil, Trash2, Wand2, KeyRound,
+  Pencil, Trash2, Wand2, KeyRound, Paperclip,
 } from "lucide-react";
 import { toast } from "sonner";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -15,6 +15,7 @@ import {
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import api, { errDetail } from "@/lib/api";
+import DocumentsDialog from "@/components/DocumentsDialog";
 
 const CATEGORIES = ["Bank", "Email", "Social", "Card", "Other"];
 const CAT_ICONS = {
@@ -52,6 +53,7 @@ export default function CredentialsTab() {
   const [form, setForm] = useState(EMPTY);
   const [editId, setEditId] = useState(null);
   const [deleteId, setDeleteId] = useState(null);
+  const [docFor, setDocFor] = useState(null);
   const [showPw, setShowPw] = useState({});
   const [showFormPw, setShowFormPw] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -210,6 +212,14 @@ export default function CredentialsTab() {
                   <p className="text-sm text-slate-500 truncate">{item.username || "—"}</p>
                 </div>
                 <div className="flex gap-1">
+                  <button
+                    data-testid={`docs-credential-${item.id}`}
+                    aria-label="Documents"
+                    onClick={() => setDocFor({ id: item.id, title: item.title })}
+                    className="w-9 h-9 rounded-full flex items-center justify-center text-slate-400 hover:bg-slate-100 hover:text-slate-700 active:scale-95 transition-colors"
+                  >
+                    <Paperclip className="w-4 h-4" />
+                  </button>
                   <button
                     data-testid={`edit-credential-${item.id}`}
                     aria-label="Edit"
@@ -444,6 +454,14 @@ export default function CredentialsTab() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      <DocumentsDialog
+        open={!!docFor}
+        onOpenChange={(o) => !o && setDocFor(null)}
+        parentType="credential"
+        parentId={docFor?.id}
+        title={docFor?.title}
+      />
     </div>
   );
 }

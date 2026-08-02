@@ -12,15 +12,18 @@ from typing import List, Optional
 
 import jwt
 import bcrypt
+from bson import ObjectId
 from cryptography.fernet import Fernet
-from fastapi import FastAPI, APIRouter, HTTPException, Request, Depends
+from fastapi import FastAPI, APIRouter, HTTPException, Request, Depends, UploadFile, File
+from fastapi.responses import Response
 from starlette.middleware.cors import CORSMiddleware
-from motor.motor_asyncio import AsyncIOMotorClient
+from motor.motor_asyncio import AsyncIOMotorClient, AsyncIOMotorGridFSBucket
 from pydantic import BaseModel, Field, ConfigDict
 
 mongo_url = os.environ['MONGO_URL']
 client = AsyncIOMotorClient(mongo_url)
 db = client[os.environ['DB_NAME']]
+fs_bucket = AsyncIOMotorGridFSBucket(db)
 
 JWT_SECRET = os.environ['JWT_SECRET']
 JWT_ALGORITHM = "HS256"
@@ -241,6 +244,7 @@ async def delete_credential(cred_id: str, _: str = Depends(require_auth)):
     result = await db.credentials.delete_one({"id": cred_id})
     if result.deleted_count == 0:
         raise HTTPException(status_code=404, detail="Credential not found")
+    await delete_parent_documents("credential", cred_id)
     return {"message": "Deleted"}
 
 
@@ -276,6 +280,7 @@ async def delete_insurance(policy_id: str, _: str = Depends(require_auth)):
     result = await db.insurance.delete_one({"id": policy_id})
     if result.deleted_count == 0:
         raise HTTPException(status_code=404, detail="Policy not found")
+    await delete_parent_documents("insurance", policy_id)
     return {"message": "Deleted"}
 
 
@@ -322,6 +327,7 @@ async def delete_card(card_id: str, _: str = Depends(require_auth)):
     result = await db.cards.delete_one({"id": card_id})
     if result.deleted_count == 0:
         raise HTTPException(status_code=404, detail="Card not found")
+    await delete_parent_documents("card", card_id)
     return {"message": "Deleted"}
 
 
@@ -331,6 +337,82 @@ async def list_members(_: str = Depends(require_auth)):
     for coll in (db.credentials, db.cards, db.insurance):
         names.update(await coll.distinct("member_name"))
     return sorted(n for n in names if n)
+
+
+# ---------- Documents ----------
+
+ALLOWED_DOC_EXT = {".pdf", ".png", ".jpg", ".jpeg", ".webp", ".heic", ".doc", ".docx", ".xls", ".xlsx", ".txt"}
+MAX_DOC_SIZE = 10 * 1024 * 1024
+
+
+async def delete_parent_documents(parent_type: str, parent_id: str):
+    async for d in db.documents.find({"parent_type": parent_type, "parent_id": parent_id}):
+        try:
+            await fs_bucket.delete(ObjectId(d["gridfs_id"]))
+        except Exception:
+            pass
+    await db.documents.delete_many({"parent_type": parent_type, "parent_id": parent_id})
+
+
+@api_router.post("/documents/upload")
+async def upload_document(parent_type: str, parent_id: str, file: UploadFile = File(...), _: str = Depends(require_auth)):
+    if parent_type not in ("credential", "card", "insurance"):
+        raise HTTPException(status_code=400, detail="Invalid parent type")
+    ext = Path(file.filename or "").suffix.lower()
+    if ext not in ALLOWED_DOC_EXT:
+        raise HTTPException(status_code=400, detail=f"File type '{ext}' not allowed")
+    data = await file.read()
+    if len(data) > MAX_DOC_SIZE:
+        raise HTTPException(status_code=400, detail="Max file size is 10 MB")
+    gridfs_id = await fs_bucket.upload_from_stream(file.filename, fernet.encrypt(data))
+    doc = {
+        "id": str(uuid.uuid4()),
+        "parent_type": parent_type,
+        "parent_id": parent_id,
+        "filename": file.filename,
+        "content_type": file.content_type or "application/octet-stream",
+        "size": len(data),
+        "gridfs_id": str(gridfs_id),
+        "created_at": datetime.now(timezone.utc).isoformat(),
+    }
+    await db.documents.insert_one(dict(doc))
+    doc.pop("gridfs_id")
+    doc.pop("_id", None)
+    return doc
+
+
+@api_router.get("/documents")
+async def list_documents(parent_type: str, parent_id: str, _: str = Depends(require_auth)):
+    return await db.documents.find(
+        {"parent_type": parent_type, "parent_id": parent_id}, {"_id": 0, "gridfs_id": 0}
+    ).sort("created_at", -1).to_list(200)
+
+
+@api_router.get("/documents/{doc_id}/download")
+async def download_document(doc_id: str, _: str = Depends(require_auth)):
+    doc = await db.documents.find_one({"id": doc_id})
+    if not doc:
+        raise HTTPException(status_code=404, detail="Document not found")
+    stream = await fs_bucket.open_download_stream(ObjectId(doc["gridfs_id"]))
+    data = fernet.decrypt(await stream.read())
+    return Response(
+        content=data,
+        media_type=doc["content_type"],
+        headers={"Content-Disposition": f'inline; filename="{doc["filename"]}"'},
+    )
+
+
+@api_router.delete("/documents/{doc_id}")
+async def delete_document(doc_id: str, _: str = Depends(require_auth)):
+    doc = await db.documents.find_one({"id": doc_id})
+    if not doc:
+        raise HTTPException(status_code=404, detail="Document not found")
+    try:
+        await fs_bucket.delete(ObjectId(doc["gridfs_id"]))
+    except Exception:
+        pass
+    await db.documents.delete_one({"id": doc_id})
+    return {"message": "Deleted"}
 
 
 app.include_router(api_router)

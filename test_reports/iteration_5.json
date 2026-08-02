@@ -1,0 +1,27 @@
+{
+  "summary": "Iteration 5 — Document Storage feature verified end-to-end. Backend: 26/26 pytest pass (18 regression from prior iterations + 8 new document tests). Documents API validated: (a) upload requires auth (401), (b) rejects invalid parent_type (400), (c) rejects .exe (400), (d) rejects >10MB (400), (e) success returns metadata without gridfs_id/_id leakage; (f) list omits gridfs_id/_id; (g) download returns original PDF bytes with application/pdf + Content-Disposition; (h) fs.chunks.data starts with b'gAAAA' (Fernet base64) and does NOT contain %PDF header — encryption at rest verified; (i) delete removes both documents metadata AND fs.files+fs.chunks; (j) deleting a parent credential cascades: db.documents empty for that parent and fs.files count decreased by 2; (k) seed doc test_policy.pdf present on LIC bc63fc20. Frontend (mobile 390x844): PIN 1234 unlock OK; paperclip button docs-credential-{id} opens Documents dialog showing documents-empty-state; set_input_files on document-file-input uploads PDF → document-row-{id} appears with filename & '1 KB' size; view-document-{id} opens blob popup successfully; delete-document-{id} removes row; LIC insurance dialog shows the seed 'test_policy.pdf' row; card paperclip opens empty documents dialog. All CRUD + integration flows working.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {"ui_bugs": [], "integration_issues": [], "design_issues": []},
+  "test_report_links": [
+    "/app/backend/tests/backend_test.py",
+    "/app/backend/tests/test_documents.py",
+    "/app/test_reports/pytest/pytest_results.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "server.py upload_document reads full file into memory before size check (data = await file.read()). For a truly huge upload this consumes RAM proportional to the request; acceptable given 10MB cap enforced at Nginx typically, but consider streaming with a running counter for defense-in-depth.",
+    "delete_parent_documents swallows all exceptions on fs_bucket.delete — fine for idempotency, but any real deletion failure will silently leak GridFS chunks. Consider logging the exception.",
+    "download_document returns Content-Disposition 'inline; filename=\"...\"' — filenames are user-supplied; a filename containing a double-quote could break the header. Consider quoting/escaping or using RFC 5987 filename* for safety.",
+    "ALLOWED_DOC_EXT check is by filename suffix only (no content-type sniffing / magic-byte check). Malicious user could upload an .exe renamed to .pdf. Given this is a personal vault and data is encrypted at rest, low risk — but worth noting.",
+    "fs_bucket = AsyncIOMotorGridFSBucket(db) is created at import time; fine for single-worker uvicorn but should be created inside app lifespan for multi-worker deployments.",
+    "No index on documents.parent_id + parent_type — list/cascade queries will full-scan as collection grows. Add compound index in startup create_indexes()."
+  ],
+  "updated_files": ["/app/backend/tests/test_documents.py", "/app/test_reports/iteration_5.json"],
+  "success_rate": {"backend": "100% (26/26)", "frontend": "100% — all documents flows passed (upload, list, view, delete, cascade seed verification, all 3 tabs)"},
+  "test_credentials": "Master PIN: 1234 (unchanged)",
+  "seed_data_creation": "Test data created and cleaned during pytest run: TEST_DocParent + TEST_CascadeParent credentials (auto-deleted via cascade), UI-uploaded ui_test_doc.pdf (deleted in-test). Existing seed (SBI Bank, PNB, HDFC, LIC + LIC's test_policy.pdf) untouched.",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Run backend: pytest /app/backend/tests/ -n 0 --junitxml=/app/test_reports/pytest/pytest_results.xml (26 tests, ~72s). Frontend: mobile viewport 390x844, unlock via pin-button-{0-9} '1234'. Documents testids: docs-{credential|card|insurance}-{id} (paperclip), documents-empty-state, upload-document-button, document-file-input (hidden — use page.set_input_files), document-row-{id}, view-document-{id}, delete-document-{id}. Toast library is sonner. LIC insurance id bc63fc20-091f-45cb-8d4c-f7c2a9ee502a has seed test_policy.pdf. Remove webpack overlay after tab switches. If PIN lockout: mongosh test_database --eval 'db.login_attempts.deleteMany({})'.",
+  "rca of the issue": "N/A — no issues found. All 4 iterations of prior work remain green, and new Document Storage feature (GridFS + Fernet encryption at rest + cascade delete) works correctly across backend API and UI on all 3 tabs (logins, cards, insurance)."
+}

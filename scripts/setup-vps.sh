@@ -86,6 +86,7 @@ server {
     server_name $DOMAIN;
     root /var/www/myvault;
     index index.html;
+    client_max_body_size 15M;
 
     location /api {
         proxy_pass http://127.0.0.1:8001;
