@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo, useCallback } from "react";
 import {
   Landmark, Mail, Users, CreditCard, Globe, Plus, Search, Copy, Eye, EyeOff,
-  Pencil, Trash2, Wand2, KeyRound, Paperclip,
+  Pencil, Trash2, Wand2, KeyRound, Paperclip, History,
 } from "lucide-react";
 import { toast } from "sonner";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -17,6 +17,7 @@ import {
 import api, { errDetail } from "@/lib/api";
 import DocumentsDialog from "@/components/DocumentsDialog";
 import MemberChips from "@/components/MemberChips";
+import PasswordHistoryDialog from "@/components/PasswordHistoryDialog";
 
 const CATEGORIES = ["Bank", "Email", "Social", "Card", "Other"];
 const CAT_ICONS = {
@@ -55,6 +56,7 @@ export default function CredentialsTab() {
   const [editId, setEditId] = useState(null);
   const [deleteId, setDeleteId] = useState(null);
   const [docFor, setDocFor] = useState(null);
+  const [historyFor, setHistoryFor] = useState(null);
   const [showPw, setShowPw] = useState({});
   const [showFormPw, setShowFormPw] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -223,6 +225,14 @@ export default function CredentialsTab() {
                   <p className="text-sm text-slate-500 truncate">{item.username || "—"}</p>
                 </div>
                 <div className="flex gap-1">
+                  <button
+                    data-testid={`history-credential-${item.id}`}
+                    aria-label="Password history"
+                    onClick={() => setHistoryFor({ id: item.id, title: item.title })}
+                    className="w-9 h-9 rounded-full flex items-center justify-center text-slate-400 hover:bg-slate-100 hover:text-slate-700 active:scale-95 transition-colors"
+                  >
+                    <History className="w-4 h-4" />
+                  </button>
                   <button
                     data-testid={`docs-credential-${item.id}`}
                     aria-label="Documents"
@@ -472,6 +482,13 @@ export default function CredentialsTab() {
         parentType="credential"
         parentId={docFor?.id}
         title={docFor?.title}
+      />
+
+      <PasswordHistoryDialog
+        open={!!historyFor}
+        onOpenChange={(o) => !o && setHistoryFor(null)}
+        credId={historyFor?.id}
+        title={historyFor?.title}
       />
     </div>
   );

@@ -1,0 +1,26 @@
+{
+  "summary": "Iteration 11: Password History + Card Expiry Alerts + Password Generator regression. Backend: 91/91 pytest pass (added 5 tests in /app/backend/tests/test_password_history.py covering full flow AAA->BBB->BBB(dedup)->CCC yielding [BBB,AAA], 401 no-auth, 404 unknown, empty [], delete-cascade, and NO leak of password_history in GET /api/credentials list). Frontend (mobile viewport, PIN 1234 via keyboard): history-credential-{id} clock button opens password-history-dialog; row-0 masked '••••••••••' by default, toggle reveals 'OLD_PWD_1!' plaintext exactly, copy button clicked (toast handler wired to sonner). Empty state data-testid='password-history-empty' shown for credentials without history (verified on existing SBI/PNB seed). Password Generator: Generate button fills credential-password-input with 16-char strong password containing symbols/mixed case (verified 'eZgBL7S5rSa&%!g8'). Cards tab: banner data-testid='card-expiry-alerts' lists BOTH expired ('Expired 62 days ago' in rose) and soon ('Expires in 60 days' amber) cards, excludes far-future 12/29 card; expiry-badge-{id} shows SOON (amber) and EXPIRED (rose) respectively, 12/29 card has NO badge. Regression: Insurance tab loads with LIC premium reminders. All test data cleaned up.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {"ui_bugs": [], "integration_issues": [], "design_issues": []},
+  "test_report_links": [
+    "/app/backend/tests/test_password_history.py",
+    "/app/backend/tests/backend_test.py",
+    "/app/test_reports/pytest/iter11.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "server.py list_credentials: password_history is NOT explicitly projected out at Mongo layer but response_model=List[Credential] Pydantic filter strips it since Credential model doesn't declare that field. Works, but adding `{'_id':0,'password_history':0}` at the DB projection would be more defensive (prevents accidental leaks if response_model is ever removed).",
+    "server.py update_credential dedup check: `plain_password != old_plain` correctly skips history push when password unchanged; also correctly skips when old_plain is empty (initial set). $slice=-5 caps history at last 5. Reversed order in GET endpoint yields newest-first as spec requires.",
+    "CardsTab expiryStatus uses Date.now() (client clock). If user's device clock is wrong, alerts may be inaccurate. Consider deriving from a server-provided 'now' or at least documenting. Low severity.",
+    "PasswordHistoryDialog fmtDate silently returns raw ISO on parse failure — acceptable graceful degradation.",
+    "PasswordHistoryDialog fetches history each time dialog opens (useEffect on open+credId) — correct, no stale caching."
+  ],
+  "updated_files": ["/app/backend/tests/test_password_history.py"],
+  "success_rate": {"backend": "100% (91/91)", "frontend": "100% (history dialog reveal/copy/empty, generator 16-char, expiry banner+badges soon/expired, no badge on OK card, insurance regression)"},
+  "test_credentials": "Master PIN: 1234",
+  "seed_data_creation": "Temp: 1 TEST_UI_Hist credential (with 1 history entry), 3 TEST_ cards (SOON 09/26, EXPIRED 05/26, OK 12/29). All deleted at end. Existing user data (SBI, PNB, LIC, HDFC card) untouched.",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "System date is Aug 2, 2026. Card expiry test dates: '09/26'=SOON(60d), '05/26'=EXPIRED(62d ago), '12/29'=OK(no badge). PasswordHistoryDialog testids: password-history-dialog, password-history-row-{idx}, password-history-value-{idx}, password-history-toggle-{idx}, password-history-copy-{idx}, password-history-empty. History button on login card: history-credential-{id}. Password gen: generate-password-button in add-credential dialog fills credential-password-input with 16-char string.",
+  "rca of the issue": "N/A — no bugs found."
+}

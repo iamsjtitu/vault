@@ -202,7 +202,13 @@ async def change_pin(body: ChangePinInput, _: str = Depends(require_auth)):
         raise HTTPException(status_code=400, detail="PIN must contain only digits")
     vault = await db.vault_config.find_one({"key": "master_pin"})
     if not vault or not verify_pin(body.old_pin, vault["pin_hash"]):
+        await db.login_attempts.update_one(
+            {"identifier": "vault"},
+            {"$inc": {"count": 1}, "$set": {"last_attempt": datetime.now(timezone.utc).isoformat()}},
+            upsert=True,
+        )
         raise HTTPException(status_code=401, detail="Current PIN is wrong")
+    await db.login_attempts.delete_one({"identifier": "vault"})
     await db.vault_config.update_one(
         {"key": "master_pin"},
         {"$set": {"pin_hash": hash_pin(body.new_pin)}, "$inc": {"token_ver": 1}},
@@ -240,12 +246,34 @@ async def update_credential(cred_id: str, body: CredentialCreate, _: str = Depen
     update = body.model_dump()
     update["updated_at"] = datetime.now(timezone.utc).isoformat()
     plain_password = update["password"]
+    old_enc = existing.get("password", "")
+    old_plain = fernet.decrypt(old_enc.encode()).decode() if old_enc else ""
     if update["password"]:
         update["password"] = fernet.encrypt(update["password"].encode()).decode()
-    await db.credentials.update_one({"id": cred_id}, {"$set": update})
+    ops = {"$set": update}
+    if old_plain and plain_password != old_plain:
+        ops["$push"] = {
+            "password_history": {
+                "$each": [{"password": old_enc, "changed_at": update["updated_at"]}],
+                "$slice": -5,
+            }
+        }
+    await db.credentials.update_one({"id": cred_id}, ops)
     existing.update(update)
     existing["password"] = plain_password
     return existing
+
+
+@api_router.get("/credentials/{cred_id}/password-history")
+async def get_password_history(cred_id: str, _: str = Depends(require_auth)):
+    doc = await db.credentials.find_one({"id": cred_id}, {"_id": 0, "id": 1, "password_history": 1})
+    if doc is None:
+        raise HTTPException(status_code=404, detail="Credential not found")
+    history = doc.get("password_history", [])
+    return [
+        {"password": fernet.decrypt(h["password"].encode()).decode(), "changed_at": h.get("changed_at", "")}
+        for h in reversed(history)
+    ]
 
 
 @api_router.delete("/credentials/{cred_id}")

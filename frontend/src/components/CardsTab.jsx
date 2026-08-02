@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo, useCallback } from "react";
-import { Plus, Pencil, Trash2, Copy, Eye, EyeOff, CreditCard, Wifi, Users, Paperclip } from "lucide-react";
+import { Plus, Pencil, Trash2, Copy, Eye, EyeOff, CreditCard, Wifi, Users, Paperclip, AlertTriangle } from "lucide-react";
 import { toast } from "sonner";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
@@ -35,6 +35,25 @@ const copyText = async (text, label) => {
   }
 };
 
+const expiryStatus = (expiry) => {
+  const m = /^(\d{2})\s*\/\s*(\d{2})$/.exec((expiry || "").trim());
+  if (!m) return null;
+  const month = parseInt(m[1], 10);
+  if (month < 1 || month > 12) return null;
+  const end = new Date(2000 + parseInt(m[2], 10), month, 0, 23, 59, 59);
+  const days = Math.ceil((end - Date.now()) / 86400000);
+  if (days < 0) return { state: "expired", days };
+  if (days <= 60) return { state: "soon", days };
+  return null;
+};
+
+const expiryText = (s) =>
+  s.state === "expired"
+    ? `Expired ${Math.abs(s.days)} day${Math.abs(s.days) === 1 ? "" : "s"} ago`
+    : s.days === 0
+    ? "Expires today"
+    : `Expires in ${s.days} day${s.days === 1 ? "" : "s"}`;
+
 export default function CardsTab() {
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -68,6 +87,15 @@ export default function CardsTab() {
   const visible = useMemo(
     () => (memberFilter === "All" ? items : items.filter((i) => i.member_name === memberFilter)),
     [items, memberFilter]
+  );
+
+  const expiryAlerts = useMemo(
+    () =>
+      items
+        .map((i) => ({ item: i, status: expiryStatus(i.expiry) }))
+        .filter((r) => r.status)
+        .sort((a, b) => a.status.days - b.status.days),
+    [items]
   );
 
   const openAdd = () => {
@@ -128,6 +156,27 @@ export default function CardsTab() {
           ))}
         </div>
       )}
+      {expiryAlerts.length > 0 && (
+        <div className="mt-4 bg-amber-50 border border-amber-200 rounded-2xl p-4" data-testid="card-expiry-alerts">
+          <p className="text-sm font-semibold text-amber-800 flex items-center gap-2 mb-2">
+            <AlertTriangle className="w-4 h-4" /> Card Expiry Alerts
+          </p>
+          <div className="space-y-1.5">
+            {expiryAlerts.map(({ item, status }) => (
+              <div key={item.id} className="flex items-center justify-between text-sm" data-testid={`expiry-alert-${item.id}`}>
+                <span className="text-slate-700 truncate">
+                  {item.bank_name}
+                  {item.card_name ? ` ${item.card_name}` : ""} •••• {(item.card_number || "").replace(/\D/g, "").slice(-4)}
+                </span>
+                <span className={`font-medium whitespace-nowrap ml-2 ${status.state === "expired" ? "text-rose-600" : "text-amber-700"}`}>
+                  {expiryText(status)}
+                </span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
       <div className="mt-5 space-y-4 md:space-y-0 md:grid md:grid-cols-2 md:gap-4 md:items-start">
         {loading && <p className="text-sm text-slate-400 text-center py-10 md:col-span-2">Loading...</p>}
         {!loading && visible.length === 0 && (
@@ -173,7 +222,23 @@ export default function CardsTab() {
                 </div>
                 <div>
                   <p className="text-[10px] uppercase tracking-wide text-slate-500">Expiry</p>
-                  <p className="text-sm font-mono">{item.expiry || "—"}</p>
+                  <p className="text-sm font-mono">
+                    {item.expiry || "—"}
+                    {(() => {
+                      const s = expiryStatus(item.expiry);
+                      if (!s) return null;
+                      return (
+                        <span
+                          data-testid={`expiry-badge-${item.id}`}
+                          className={`ml-1.5 px-1.5 py-0.5 rounded-full text-[9px] font-sans font-semibold align-middle ${
+                            s.state === "expired" ? "bg-rose-400/20 text-rose-300" : "bg-amber-400/20 text-amber-300"
+                          }`}
+                        >
+                          {s.state === "expired" ? "EXPIRED" : "SOON"}
+                        </span>
+                      );
+                    })()}
+                  </p>
                 </div>
                 <div>
                   <p className="text-[10px] uppercase tracking-wide text-slate-500">CVV</p>
