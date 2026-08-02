@@ -80,7 +80,7 @@ export default function PinScreen({ mode, onUnlock }) {
         <div className={`flex gap-4 my-10 ${shake ? "pin-shake" : ""}`} data-testid="pin-dots">
           {Array.from({ length: PIN_LENGTH }).map((_, i) => (
             <div
-              key={i}
+              key={`pin-dot-${i}`}
               className={`w-4 h-4 rounded-full ${
                 i < pin.length ? "bg-slate-900 pin-dot-filled" : "bg-slate-200"
               }`}

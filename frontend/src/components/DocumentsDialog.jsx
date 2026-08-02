@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { FileText, Upload, Trash2, Eye, Paperclip } from "lucide-react";
 import { toast } from "sonner";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -13,19 +13,18 @@ export default function DocumentsDialog({ open, onOpenChange, parentType, parent
   const [uploading, setUploading] = useState(false);
   const fileRef = useRef(null);
 
-  const load = () => {
+  const load = useCallback(() => {
     if (!parentId) return;
     setLoading(true);
     api
       .get("/documents", { params: { parent_type: parentType, parent_id: parentId } })
       .then(({ data }) => setDocs(data))
       .finally(() => setLoading(false));
-  };
+  }, [parentType, parentId]);
 
   useEffect(() => {
     if (open) load();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open, parentId]);
+  }, [open, load]);
 
   const upload = async (e) => {
     const file = e.target.files?.[0];

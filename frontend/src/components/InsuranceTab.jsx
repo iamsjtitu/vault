@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useCallback } from "react";
 import { Plus, Pencil, Trash2, FileText, ShieldPlus, CalendarDays, User, Search, BellRing, Paperclip, Check, History, Award, Wallet, Undo2 } from "lucide-react";
 import { toast } from "sonner";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -13,6 +13,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import api, { errDetail } from "@/lib/api";
 import DocumentsDialog from "@/components/DocumentsDialog";
+import MemberChips from "@/components/MemberChips";
 
 const EMPTY = {
   company_name: "", plan_name: "", policy_number: "", member_name: "", premium_amount: "",
@@ -41,15 +42,15 @@ export default function InsuranceTab() {
   const [memberSuggestions, setMemberSuggestions] = useState([]);
   const [docCounts, setDocCounts] = useState({});
 
-  const load = () => {
+  const load = useCallback(() => {
     api.get("/insurance").then(({ data }) => setItems(data)).finally(() => setLoading(false));
     api.get("/members").then(({ data }) => setMemberSuggestions(data)).catch(() => {});
     api.get("/documents/counts", { params: { parent_type: "insurance" } }).then(({ data }) => setDocCounts(data)).catch(() => {});
-  };
+  }, []);
 
   useEffect(() => {
     load();
-  }, []);
+  }, [load]);
 
   const visible = useMemo(() => {
     if (!search.trim()) return items;
@@ -450,22 +451,12 @@ export default function InsuranceTab() {
                 onChange={(e) => setForm({ ...form, member_name: e.target.value })}
                 className="rounded-xl"
               />
-              {memberSuggestions.length > 0 && (
-                <div className="flex flex-wrap gap-1.5 pt-1" data-testid="insurance-member-suggestions">
-                  {memberSuggestions
-                    .filter((m) => m !== form.member_name)
-                    .map((m) => (
-                      <button
-                        key={m}
-                        type="button"
-                        onClick={() => setForm({ ...form, member_name: m })}
-                        className="px-2.5 py-1 rounded-full bg-emerald-50 text-emerald-700 text-xs font-medium hover:bg-emerald-100 active:scale-95 transition-colors"
-                      >
-                        {m}
-                      </button>
-                    ))}
-                </div>
-              )}
+              <MemberChips
+                suggestions={memberSuggestions}
+                current={form.member_name}
+                onPick={(m) => setForm({ ...form, member_name: m })}
+                testId="insurance-member-suggestions"
+              />
             </div>
             <div className="space-y-1.5">
               <Label>Policy Number</Label>

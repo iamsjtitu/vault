@@ -1,0 +1,34 @@
+{
+  "summary": "Iteration 9 FULL REGRESSION for pure code-quality refactor (useCallback+deps, MemberChips extraction, titleSuggestions useMemo, PinScreen dot React keys). Backend pytest suite 49/49 passing. Frontend regression across PIN screen, Logins, Cards, Insurance tabs — all behaviors preserved.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {"ui_bugs": [], "integration_issues": [], "design_issues": []},
+  "test_report_links": [
+    "/app/backend/tests/backend_test.py",
+    "/app/backend/tests/test_documents.py",
+    "/app/backend/tests/test_mark_paid.py",
+    "/app/backend/tests/test_payments_maturity.py",
+    "/app/backend/tests/test_undo_paid.py",
+    "/app/test_reports/pytest/iter9.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "MemberChips is clean and small (21 lines); good extraction. useMemo for `visible` is fine.",
+    "titleSuggestions useMemo dep list should include the source list (verified in CredentialsTab.jsx) — filter-as-you-type still works (typed 'SB' -> ['SBI Bank']).",
+    "PinScreen dot React keys changed to `pin-dot-${i}` — this is only a React reconciliation key (not a data-testid). The dots container has data-testid=\"pin-dots\" and four inner divs render correctly and animate on fill; refactor is behavior-neutral.",
+    "DocumentsDialog load() with [parentType, parentId] deps: docs badge still shows (count=1 on LIC), no re-fetch loops observed."
+  ],
+  "updated_files": [],
+  "success_rate": {"backend": "100% (49/49)", "frontend": "100% of regression checks"},
+  "test_credentials": "Master PIN: 1234",
+  "seed_data_creation": "None created; existing seed preserved (SBI Bank + PNB Net Banking Father, HDFC Bank Self card, LIC Father Yearly 25000 due 2026-08-15 with 1 payment and 1 doc).",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Refactor confirmed behavior-neutral. Selectors that matter: [data-testid=pin-screen], [data-testid=pin-dots] (4 inner divs), [data-testid=add-credential-fab], [data-testid=title-suggestions], [data-testid=cred-member-suggestions], [data-testid=card-member-suggestions], [data-testid=insurance-member-suggestions], [data-testid^=history-insurance-], [data-testid=lock-vault-button]. Unlock=type '1234' via keyboard. Session persists across reload.",
+  "regression_checks_passed": [
+    "Backend: pytest 49/49 pass in 112s",
+    "PIN: 4 dots render, keyboard 1234 unlocks, lock-vault-button relocks, wrong 9999 keeps on PIN, refresh stays unlocked",
+    "Logins: 2 seed creds visible, title-suggestions filters on type (SB->SBI Bank), cred-member-suggestions shows [Father, Self], chip click fills member input with 'Father', search 'SBI' filters to 1, password toggle works",
+    "Cards: add-card-fab opens dialog, card-member-suggestions renders",
+    "Insurance: Yearly Premium Total card shown (₹25,000/yr Father), history-insurance opens Payment History (rows + Undo present), Paid click shows Undo toast (Undo restores state), insurance-member-suggestions renders in add dialog, LIC due 2026-08-15 intact"
+  ]
+}
