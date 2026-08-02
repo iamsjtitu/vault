@@ -7,7 +7,7 @@ load_dotenv(ROOT_DIR / '.env')
 import os
 import uuid
 import logging
-from datetime import datetime, timezone, timedelta
+from datetime import datetime, timezone, timedelta, date
 from typing import List, Optional
 
 import jwt
@@ -121,6 +121,7 @@ class InsuranceCreate(BaseModel):
 class Insurance(InsuranceCreate):
     model_config = ConfigDict(extra="ignore")
     id: str = Field(default_factory=lambda: str(uuid.uuid4()))
+    last_paid_on: str = ""
     created_at: str = ""
     updated_at: str = ""
 
@@ -273,6 +274,39 @@ async def update_insurance(policy_id: str, body: InsuranceCreate, _: str = Depen
     await db.insurance.update_one({"id": policy_id}, {"$set": update})
     existing.update(update)
     return existing
+
+
+FREQ_MONTHS = {"Yearly": 12, "Half-Yearly": 6, "Quarterly": 3, "Monthly": 1}
+
+MONTH_DAYS = [31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31]
+
+
+def add_months(d: date, months: int) -> date:
+    m = d.month - 1 + months
+    y = d.year + m // 12
+    m = m % 12 + 1
+    max_day = 29 if m == 2 and (y % 4 == 0 and (y % 100 != 0 or y % 400 == 0)) else MONTH_DAYS[m - 1]
+    return date(y, m, min(d.day, max_day))
+
+
+@api_router.post("/insurance/{policy_id}/mark-paid")
+async def mark_premium_paid(policy_id: str, _: str = Depends(require_auth)):
+    policy = await db.insurance.find_one({"id": policy_id}, {"_id": 0})
+    if not policy:
+        raise HTTPException(status_code=404, detail="Policy not found")
+    if not policy.get("premium_due_date"):
+        raise HTTPException(status_code=400, detail="No premium due date set")
+    months = FREQ_MONTHS.get(policy.get("premium_frequency", "Yearly"))
+    current = date.fromisoformat(policy["premium_due_date"])
+    new_due = add_months(current, months).isoformat() if months else ""
+    update = {
+        "premium_due_date": new_due,
+        "last_paid_on": date.today().isoformat(),
+        "updated_at": datetime.now(timezone.utc).isoformat(),
+    }
+    await db.insurance.update_one({"id": policy_id}, {"$set": update})
+    policy.update(update)
+    return policy
 
 
 @api_router.delete("/insurance/{policy_id}")

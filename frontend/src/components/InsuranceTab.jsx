@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from "react";
-import { Plus, Pencil, Trash2, FileText, ShieldPlus, CalendarDays, User, Search, BellRing, Paperclip } from "lucide-react";
+import { Plus, Pencil, Trash2, FileText, ShieldPlus, CalendarDays, User, Search, BellRing, Paperclip, Check } from "lucide-react";
 import { toast } from "sonner";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
@@ -68,6 +68,16 @@ export default function InsuranceTab() {
 
   const dueText = (d) =>
     d < 0 ? `Overdue by ${-d} day${-d > 1 ? "s" : ""}` : d === 0 ? "Due today" : `Due in ${d} day${d > 1 ? "s" : ""}`;
+
+  const markPaid = async (r) => {
+    try {
+      const { data } = await api.post(`/insurance/${r.id}/mark-paid`);
+      toast.success(data.premium_due_date ? `Paid! Next due: ${data.premium_due_date}` : "Marked paid");
+      load();
+    } catch (e) {
+      toast.error(errDetail(e));
+    }
+  };
 
   const openAdd = () => {
     setForm(EMPTY);
@@ -163,6 +173,13 @@ export default function InsuranceTab() {
                 <span className={`font-medium whitespace-nowrap ml-2 ${r.days < 0 ? "text-rose-600" : "text-amber-700"}`}>
                   {inr(r.premium_amount)} · {dueText(r.days)}
                 </span>
+                <button
+                  data-testid={`mark-paid-${r.id}`}
+                  onClick={() => markPaid(r)}
+                  className="ml-2 h-7 px-2.5 rounded-full bg-emerald-600 text-white text-xs font-medium hover:bg-emerald-700 active:scale-95 transition-colors flex items-center gap-1 shrink-0"
+                >
+                  <Check className="w-3 h-3" /> Paid
+                </button>
               </div>
             ))}
           </div>
@@ -264,6 +281,11 @@ export default function InsuranceTab() {
               <div className="bg-amber-50/70 rounded-xl px-3 py-2.5">
                 <p className="text-xs text-slate-500 flex items-center gap-1"><BellRing className="w-3 h-3" /> Next Premium Due</p>
                 <p className="font-medium text-slate-900">{item.premium_due_date || "—"}</p>
+                {item.last_paid_on && (
+                  <p className="text-[10px] text-emerald-600 mt-0.5" data-testid={`last-paid-${item.id}`}>
+                    Last paid: {item.last_paid_on}
+                  </p>
+                )}
               </div>
             </div>
             {item.nominee && (
