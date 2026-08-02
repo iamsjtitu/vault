@@ -68,6 +68,11 @@
 - Verified pre-existing Password Generator (16-char, Generate button in login form) still works
 - Biometric Unlock (WebAuthn passkeys): Settings → Enable registers a platform passkey (fingerprint/Face ID); lock screen shows "Unlock with fingerprint / face" button when enabled; Disable removes credentials. Backend: /api/webauthn/status|register/options|register/verify|auth/options|auth/verify|credentials(DELETE). RP ID from x-forwarded-host (preview proxy) fallback host header (VPS nginx). Per-domain credentials (preview & VPS separate). 8 pytest crypto tests (tests/test_webauthn.py) incl. replay/tamper/cross-origin rejection
 
+### Iteration 10 (fork) — Multi-device biometric fix
+- Bug: enabling fingerprint on Android blocked iPhone (status was domain-wide; Settings showed "enabled" with no Enable button; lock screen button appeared on devices without passkey)
+- Fix: per-device passkeys — localStorage 'vault_bio_cred' stores this device's credential id; /webauthn/status returns credential_ids[]; PinScreen button gated on deviceBioEnabled(); Settings shows per-device Enable ("N device pe enabled hai — is device pe bhi enable karo"), Disable (this device only via ?credential_id=), and "Sab devices se biometric hatao" (remove all); auth/options accepts {credential_id} to target this device's passkey
+- Tested: 9/9 backend pytest + full two-context (Android/iPhone) E2E with CDP virtual authenticators — iteration_13.json
+
 ## Testing
 - Iteration 1: 100% pass backend (8/8 pytest) + all frontend flows (see /app/test_reports/iteration_1.json)
 - Iteration 11: 91/91 backend pytest + 100% frontend (password history, expiry alerts, generator) — /app/test_reports/iteration_11.json

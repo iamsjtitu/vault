@@ -47,7 +47,8 @@ export async function registerPasskey() {
 }
 
 export async function unlockWithPasskey() {
-  const { data: o } = await api.post("/webauthn/auth/options", { credential_id: getLocalCredId() });
+  const localId = getLocalCredId();
+  const { data: o } = await api.post("/webauthn/auth/options", localId ? { credential_id: localId } : {});
   const publicKey = {
     ...o,
     challenge: b64urlToBytes(o.challenge),

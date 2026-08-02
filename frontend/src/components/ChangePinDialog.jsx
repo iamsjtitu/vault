@@ -135,6 +135,8 @@ export default function ChangePinDialog({ open, onOpenChange, lockMinutes, onLoc
               <p className="text-xs text-slate-400" data-testid="biometric-unsupported">
                 Is browser me fingerprint/face unlock supported nahi hai.
               </p>
+            ) : bioStatus === null ? (
+              <p className="text-xs text-slate-400">Loading...</p>
             ) : thisDeviceEnabled ? (
               <div className="flex items-center justify-between gap-2">
                 <p className="text-xs text-slate-500" data-testid="biometric-this-device-status">
