@@ -434,6 +434,7 @@ async def create_indexes():
     await db.credentials.create_index("id")
     await db.insurance.create_index("id")
     await db.cards.create_index("id")
+    await db.documents.create_index([("parent_type", 1), ("parent_id", 1)])
     await db.login_attempts.create_index("identifier")
 
 

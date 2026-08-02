@@ -44,6 +44,12 @@
 - New PWA icon (blue gradient padlock)
 - Deployed to user's VPS (v.9x.design) with GitHub Actions auto-deploy (password auth)
 
+### June 2026 — Iteration 5
+- Document Storage: attach PDFs/photos/docs to any entry (logins, cards, insurance) via paperclip button → Documents dialog (upload/view/delete)
+- Files stored in MongoDB GridFS, Fernet-encrypted at rest; 10MB cap; extension whitelist; cascade delete with parent entry
+- Settings: auto-lock time selector (2/5/10 min, localStorage)
+- VPS nginx client_max_body_size 15M (live + setup script)
+
 ## Testing
 - Iteration 1: 100% pass backend (8/8 pytest) + all frontend flows (see /app/test_reports/iteration_1.json)
 - Master PIN for testing: 1234 (see /app/memory/test_credentials.md)
