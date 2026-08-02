@@ -1,0 +1,33 @@
+{
+  "summary": "Iteration 10: SECURITY HARDENING full validation. Added /app/backend/tests/test_security.py (37 new tests). Full pytest 86/86 pass in 34s. All hardening features validated: JWT token versioning (old token 401 after change-pin), progressive lockout (5 wrong PINs -> 429 with 'min' message, count persists in db.login_attempts), security headers (X-Frame-Options DENY, nosniff, HSTS, Referrer-Policy, Permissions-Policy, Cache-Control no-store on /api), document upload sanitization (../..<script>evil</script>.txt -> stripped bad chars, client content_type ignored, txt served as attachment with text/plain), .exe/.html/.svg rejected 400, all 14 protected endpoints return 401 for no-token AND garbage-token, CORS echoes allowed origin & withholds ACAO for evil origin (verified against localhost:8001 — see note below). Frontend regression: PIN 1234 unlock, all 3 tabs load with correct seed counts (2 creds, 1 card, 1 ins), add+delete credential works, Change PIN 1234->5678 succeeds WITHOUT re-locking UI (silent re-unlock via ChangePinDialog effect), continued browsing on Cards tab worked, revert 5678->1234 also without re-lock. Final state: PIN=1234, db.login_attempts empty, seed intact.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {"ui_bugs": [], "integration_issues": [], "design_issues": []},
+  "test_report_links": [
+    "/app/backend/tests/test_security.py",
+    "/app/backend/tests/backend_test.py",
+    "/app/backend/tests/test_documents.py",
+    "/app/backend/tests/test_mark_paid.py",
+    "/app/backend/tests/test_payments_maturity.py",
+    "/app/backend/tests/test_undo_paid.py",
+    "/app/test_reports/pytest/iter10.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "Progressive lockout math is sound: cycles = count // 5, lock_min = 15 * 2^(cycles-1), capped 1440 (24h). Counter is NOT reset on lockout expiry — only on successful unlock — which is exactly the requested 'persist across windows' behavior.",
+    "require_auth compares int(payload.ver) == int(vault.token_ver). Since $inc default and payload defaults are both 0-safe, this correctly invalidates ALL prior tokens the moment change-pin runs.",
+    "safe_filename regex `[^A-Za-z0-9._ -]` correctly strips <, >, path separators, control chars. The Path(...).name call defeats '../..' traversal at the OS level. 100-char cap prevents FS abuse. Good.",
+    "download_document derives media_type ONLY from ext (whitelist lookup with octet-stream fallback) and forces attachment disposition for non-inline types. This kills stored-XSS via forged content_type — verified: uploaded a txt with client-declared content_type='text/html', downloaded as text/plain attachment.",
+    "CORS: FastAPI CORSMiddleware correctly echoes ALLOWED_ORIGIN and withholds ACAO for evil origin (verified via curl on localhost:8001). NOTE: The public preview URL sits behind Cloudflare edge which overwrites ACAO to '*' on OPTIONS regardless — this is the preview infra, NOT the app. User's own nginx (per request note) does not do this, so production behavior is correct. CORS tests point at localhost:8001 for this reason.",
+    "Security headers middleware runs AFTER call_next, so 401/400/500 responses ALSO get the headers — verified.",
+    "One subtle observation (not a bug, worth noting): the lockout gate `attempt.count >= MAX_ATTEMPTS` also blocks the CORRECT PIN once locked. This is intentional (that's what makes it a lockout), but if the user forgets PIN mid-session and hammers, they're locked for 15 min even if they remember. UX-wise a countdown in the UI would help — the 429 message includes the minutes so frontend can show it. Not a blocker.",
+    "change_pin does NOT bump lockout counter on wrong old_pin — a persistent attacker with a live token could brute-force old_pin without triggering lockout. But: they already need a valid token (which itself requires a successful unlock). Low severity; noting for defense-in-depth."
+  ],
+  "updated_files": ["/app/backend/tests/test_security.py"],
+  "success_rate": {"backend": "100% (86/86)", "frontend": "100% (unlock, 3-tab load, CRUD, change-PIN round-trip)"},
+  "test_credentials": "Master PIN: 1234. Reset lockout: mongosh test_database --eval 'db.login_attempts.deleteMany({})'",
+  "seed_data_creation": "None (existing seed preserved: 2 credentials [SBI Bank, PNB Net Banking Father], 1 HDFC Self card, 1 LIC Father Yearly ins due 2026-08-15 with 1 payment + 1 doc). Temp TEST_ data created during tests was cleaned up.",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Security hardening green. Selectors for change-pin flow: [data-testid=settings-button] (top-right gear), then [data-testid=old-pin-input]/[data-testid=new-pin-input]/[data-testid=confirm-pin-input]/[data-testid=change-pin-submit]. After submit, ChangePinDialog silently POSTs /auth/unlock with new PIN and setToken() — UI stays unlocked; test by asserting [data-testid=pin-screen] is NOT visible. To reset lockout mid-test: mongosh test_database --eval 'db.login_attempts.deleteMany({})'. Preview URL is behind Cloudflare which rewrites CORS to '*' on OPTIONS — test CORS against http://localhost:8001 (backend directly).",
+  "rca of the issue": "N/A — no bugs found."
+}

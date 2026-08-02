@@ -4,7 +4,7 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } f
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
-import api, { errDetail } from "@/lib/api";
+import api, { setToken, errDetail } from "@/lib/api";
 
 export default function ChangePinDialog({ open, onOpenChange, lockMinutes, onLockMinutesChange }) {
   const [oldPin, setOldPin] = useState("");
@@ -26,6 +26,12 @@ export default function ChangePinDialog({ open, onOpenChange, lockMinutes, onLoc
     setSaving(true);
     try {
       await api.post("/auth/change-pin", { old_pin: oldPin, new_pin: newPin });
+      try {
+        const { data } = await api.post("/auth/unlock", { pin: newPin });
+        setToken(data.token);
+      } catch {
+        // will re-lock on next request; user unlocks with new PIN
+      }
       toast.success("PIN changed successfully");
       reset();
       onOpenChange(false);

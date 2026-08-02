@@ -5,6 +5,7 @@ ROOT_DIR = Path(__file__).parent
 load_dotenv(ROOT_DIR / '.env')
 
 import os
+import re
 import uuid
 import logging
 from datetime import datetime, timezone, timedelta, date
@@ -53,8 +54,8 @@ def verify_pin(pin: str, hashed: str) -> bool:
     return bcrypt.checkpw(pin.encode("utf-8"), hashed.encode("utf-8"))
 
 
-def create_token() -> str:
-    payload = {"sub": "vault_owner", "exp": datetime.now(timezone.utc) + timedelta(hours=12), "type": "access"}
+def create_token(ver: int = 0) -> str:
+    payload = {"sub": "vault_owner", "ver": ver, "exp": datetime.now(timezone.utc) + timedelta(hours=12), "type": "access"}
     return jwt.encode(payload, JWT_SECRET, algorithm=JWT_ALGORITHM)
 
 
@@ -67,6 +68,9 @@ async def require_auth(request: Request) -> str:
         payload = jwt.decode(token, JWT_SECRET, algorithms=[JWT_ALGORITHM])
         if payload.get("type") != "access":
             raise HTTPException(status_code=401, detail="Invalid token type")
+        vault = await db.vault_config.find_one({"key": "master_pin"})
+        if int(payload.get("ver", 0)) != int((vault or {}).get("token_ver", 0)):
+            raise HTTPException(status_code=401, detail="Session expired, unlock again")
         return payload["sub"]
     except jwt.ExpiredSignatureError:
         raise HTTPException(status_code=401, detail="Session expired, unlock again")
@@ -160,8 +164,8 @@ async def setup_pin(body: PinInput):
     existing = await db.vault_config.find_one({"key": "master_pin"})
     if existing:
         raise HTTPException(status_code=400, detail="PIN already set")
-    await db.vault_config.insert_one({"key": "master_pin", "pin_hash": hash_pin(body.pin)})
-    return {"token": create_token()}
+    await db.vault_config.insert_one({"key": "master_pin", "pin_hash": hash_pin(body.pin), "token_ver": 0})
+    return {"token": create_token(0)}
 
 
 @api_router.post("/auth/unlock")
@@ -173,11 +177,12 @@ async def unlock(body: PinInput):
     attempt = await db.login_attempts.find_one({"identifier": "vault"})
     now = datetime.now(timezone.utc)
     if attempt and attempt.get("count", 0) >= MAX_ATTEMPTS:
-        locked_at = datetime.fromisoformat(attempt["last_attempt"])
-        if now < locked_at + timedelta(minutes=LOCKOUT_MINUTES):
-            remaining = int(((locked_at + timedelta(minutes=LOCKOUT_MINUTES)) - now).total_seconds() // 60) + 1
+        cycles = attempt["count"] // MAX_ATTEMPTS
+        lock_min = min(LOCKOUT_MINUTES * (2 ** (cycles - 1)), 1440)
+        locked_until = datetime.fromisoformat(attempt["last_attempt"]) + timedelta(minutes=lock_min)
+        if now < locked_until:
+            remaining = int((locked_until - now).total_seconds() // 60) + 1
             raise HTTPException(status_code=429, detail=f"Too many wrong attempts. Try again in {remaining} min")
-        await db.login_attempts.delete_one({"identifier": "vault"})
 
     if not verify_pin(body.pin, vault["pin_hash"]):
         await db.login_attempts.update_one(
@@ -188,7 +193,7 @@ async def unlock(body: PinInput):
         raise HTTPException(status_code=401, detail="Wrong PIN")
 
     await db.login_attempts.delete_one({"identifier": "vault"})
-    return {"token": create_token()}
+    return {"token": create_token(int(vault.get("token_ver", 0)))}
 
 
 @api_router.post("/auth/change-pin")
@@ -198,7 +203,10 @@ async def change_pin(body: ChangePinInput, _: str = Depends(require_auth)):
     vault = await db.vault_config.find_one({"key": "master_pin"})
     if not vault or not verify_pin(body.old_pin, vault["pin_hash"]):
         raise HTTPException(status_code=401, detail="Current PIN is wrong")
-    await db.vault_config.update_one({"key": "master_pin"}, {"$set": {"pin_hash": hash_pin(body.new_pin)}})
+    await db.vault_config.update_one(
+        {"key": "master_pin"},
+        {"$set": {"pin_hash": hash_pin(body.new_pin)}, "$inc": {"token_ver": 1}},
+    )
     return {"message": "PIN changed"}
 
 
@@ -410,8 +418,27 @@ async def list_members(_: str = Depends(require_auth)):
 
 # ---------- Documents ----------
 
-ALLOWED_DOC_EXT = {".pdf", ".png", ".jpg", ".jpeg", ".webp", ".heic", ".doc", ".docx", ".xls", ".xlsx", ".txt"}
+EXT_CONTENT_TYPES = {
+    ".pdf": "application/pdf",
+    ".png": "image/png",
+    ".jpg": "image/jpeg",
+    ".jpeg": "image/jpeg",
+    ".webp": "image/webp",
+    ".heic": "image/heic",
+    ".doc": "application/msword",
+    ".docx": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+    ".xls": "application/vnd.ms-excel",
+    ".xlsx": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    ".txt": "text/plain",
+}
+INLINE_EXTS = {".pdf", ".png", ".jpg", ".jpeg", ".webp"}
+ALLOWED_DOC_EXT = set(EXT_CONTENT_TYPES)
 MAX_DOC_SIZE = 10 * 1024 * 1024
+
+
+def safe_filename(name: str) -> str:
+    name = Path(name or "file").name
+    return re.sub(r"[^A-Za-z0-9._ -]", "_", name)[:100] or "file"
 
 
 async def delete_parent_documents(parent_type: str, parent_id: str):
@@ -427,19 +454,20 @@ async def delete_parent_documents(parent_type: str, parent_id: str):
 async def upload_document(parent_type: str, parent_id: str, file: UploadFile = File(...), _: str = Depends(require_auth)):
     if parent_type not in ("credential", "card", "insurance"):
         raise HTTPException(status_code=400, detail="Invalid parent type")
-    ext = Path(file.filename or "").suffix.lower()
+    fname = safe_filename(file.filename)
+    ext = Path(fname).suffix.lower()
     if ext not in ALLOWED_DOC_EXT:
         raise HTTPException(status_code=400, detail=f"File type '{ext}' not allowed")
     data = await file.read()
     if len(data) > MAX_DOC_SIZE:
         raise HTTPException(status_code=400, detail="Max file size is 10 MB")
-    gridfs_id = await fs_bucket.upload_from_stream(file.filename, fernet.encrypt(data))
+    gridfs_id = await fs_bucket.upload_from_stream(fname, fernet.encrypt(data))
     doc = {
         "id": str(uuid.uuid4()),
         "parent_type": parent_type,
         "parent_id": parent_id,
-        "filename": file.filename,
-        "content_type": file.content_type or "application/octet-stream",
+        "filename": fname,
+        "content_type": EXT_CONTENT_TYPES[ext],
         "size": len(data),
         "gridfs_id": str(gridfs_id),
         "created_at": datetime.now(timezone.utc).isoformat(),
@@ -471,12 +499,16 @@ async def download_document(doc_id: str, _: str = Depends(require_auth)):
     doc = await db.documents.find_one({"id": doc_id})
     if not doc:
         raise HTTPException(status_code=404, detail="Document not found")
+    fname = safe_filename(doc["filename"])
+    ext = Path(fname).suffix.lower()
+    media = EXT_CONTENT_TYPES.get(ext, "application/octet-stream")
+    disposition = "inline" if ext in INLINE_EXTS else "attachment"
     stream = await fs_bucket.open_download_stream(ObjectId(doc["gridfs_id"]))
     data = fernet.decrypt(await stream.read())
     return Response(
         content=data,
-        media_type=doc["content_type"],
-        headers={"Content-Disposition": f'inline; filename="{doc["filename"]}"'},
+        media_type=media,
+        headers={"Content-Disposition": f'{disposition}; filename="{fname}"'},
     )
 
 
@@ -502,6 +534,19 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+
+@app.middleware("http")
+async def security_headers(request: Request, call_next):
+    response = await call_next(request)
+    response.headers["X-Content-Type-Options"] = "nosniff"
+    response.headers["X-Frame-Options"] = "DENY"
+    response.headers["Referrer-Policy"] = "no-referrer"
+    response.headers["Permissions-Policy"] = "camera=(), microphone=(), geolocation=()"
+    response.headers["Strict-Transport-Security"] = "max-age=31536000; includeSubDomains"
+    if request.url.path.startswith("/api"):
+        response.headers["Cache-Control"] = "no-store"
+    return response
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)

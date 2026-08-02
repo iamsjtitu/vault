@@ -87,6 +87,10 @@ server {
     root /var/www/myvault;
     index index.html;
     client_max_body_size 15M;
+    add_header X-Frame-Options "DENY" always;
+    add_header X-Content-Type-Options "nosniff" always;
+    add_header Referrer-Policy "no-referrer" always;
+    add_header Strict-Transport-Security "max-age=31536000; includeSubDomains" always;
 
     location /api {
         proxy_pass http://127.0.0.1:8001;
