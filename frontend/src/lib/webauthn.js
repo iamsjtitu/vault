@@ -15,6 +15,12 @@ const bytesToB64url = (buf) =>
 export const biometricSupported = () =>
   typeof window !== "undefined" && !!window.PublicKeyCredential && !!navigator.credentials;
 
+const CRED_KEY = "vault_bio_cred";
+export const getLocalCredId = () => localStorage.getItem(CRED_KEY);
+export const clearLocalCredId = () => localStorage.removeItem(CRED_KEY);
+export const deviceBioEnabled = (status) =>
+  !!status?.enabled && !!getLocalCredId() && (status.credential_ids || []).includes(getLocalCredId());
+
 export async function registerPasskey() {
   const { data: o } = await api.post("/webauthn/register/options");
   const publicKey = {
@@ -37,10 +43,11 @@ export async function registerPasskey() {
     clientExtensionResults: cred.getClientExtensionResults(),
     authenticatorAttachment: cred.authenticatorAttachment,
   });
+  localStorage.setItem(CRED_KEY, cred.id);
 }
 
 export async function unlockWithPasskey() {
-  const { data: o } = await api.post("/webauthn/auth/options");
+  const { data: o } = await api.post("/webauthn/auth/options", { credential_id: getLocalCredId() });
   const publicKey = {
     ...o,
     challenge: b64urlToBytes(o.challenge),

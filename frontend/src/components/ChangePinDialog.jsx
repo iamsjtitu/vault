@@ -6,28 +6,33 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import api, { setToken, errDetail } from "@/lib/api";
-import { biometricSupported, registerPasskey } from "@/lib/webauthn";
+import { biometricSupported, registerPasskey, getLocalCredId, clearLocalCredId, deviceBioEnabled } from "@/lib/webauthn";
 
 export default function ChangePinDialog({ open, onOpenChange, lockMinutes, onLockMinutesChange }) {
   const [oldPin, setOldPin] = useState("");
   const [newPin, setNewPin] = useState("");
   const [confirmPin, setConfirmPin] = useState("");
   const [saving, setSaving] = useState(false);
-  const [bioEnabled, setBioEnabled] = useState(false);
+  const [bioStatus, setBioStatus] = useState(null);
   const [bioBusy, setBioBusy] = useState(false);
   const bioSupported = biometricSupported();
+  const thisDeviceEnabled = deviceBioEnabled(bioStatus);
+  const otherDevices = (bioStatus?.count || 0) - (thisDeviceEnabled ? 1 : 0);
+
+  const refreshBio = () => {
+    api.get("/webauthn/status").then(({ data }) => setBioStatus(data)).catch(() => {});
+  };
 
   useEffect(() => {
-    if (open && bioSupported) {
-      api.get("/webauthn/status").then(({ data }) => setBioEnabled(data.enabled)).catch(() => {});
-    }
+    if (open && bioSupported) refreshBio();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, bioSupported]);
 
   const enableBio = async () => {
     setBioBusy(true);
     try {
       await registerPasskey();
-      setBioEnabled(true);
+      refreshBio();
       toast.success("Biometric unlock enabled on this device");
     } catch (e) {
       if (e?.name !== "NotAllowedError" && e?.name !== "AbortError") {
@@ -41,9 +46,24 @@ export default function ChangePinDialog({ open, onOpenChange, lockMinutes, onLoc
   const disableBio = async () => {
     setBioBusy(true);
     try {
+      await api.delete("/webauthn/credentials", { params: { credential_id: getLocalCredId() } });
+      clearLocalCredId();
+      refreshBio();
+      toast.success("Biometric unlock disabled on this device");
+    } catch (e) {
+      toast.error(errDetail(e));
+    } finally {
+      setBioBusy(false);
+    }
+  };
+
+  const removeAllBio = async () => {
+    setBioBusy(true);
+    try {
       await api.delete("/webauthn/credentials");
-      setBioEnabled(false);
-      toast.success("Biometric unlock disabled");
+      clearLocalCredId();
+      refreshBio();
+      toast.success("Biometric unlock removed from all devices");
     } catch (e) {
       toast.error(errDetail(e));
     } finally {
@@ -115,9 +135,11 @@ export default function ChangePinDialog({ open, onOpenChange, lockMinutes, onLoc
               <p className="text-xs text-slate-400" data-testid="biometric-unsupported">
                 Is browser me fingerprint/face unlock supported nahi hai.
               </p>
-            ) : bioEnabled ? (
+            ) : thisDeviceEnabled ? (
               <div className="flex items-center justify-between gap-2">
-                <p className="text-xs text-slate-500">Is device pe enabled hai</p>
+                <p className="text-xs text-slate-500" data-testid="biometric-this-device-status">
+                  Is device pe enabled hai{otherDevices > 0 ? ` (+${otherDevices} aur device)` : ""}
+                </p>
                 <Button
                   type="button"
                   variant="outline"
@@ -132,7 +154,11 @@ export default function ChangePinDialog({ open, onOpenChange, lockMinutes, onLoc
               </div>
             ) : (
               <div className="flex items-center justify-between gap-2">
-                <p className="text-xs text-slate-500">Fingerprint/face se vault unlock karo</p>
+                <p className="text-xs text-slate-500" data-testid="biometric-this-device-status">
+                  {otherDevices > 0
+                    ? `${otherDevices} device pe enabled hai — is device pe bhi enable karo`
+                    : "Fingerprint/face se vault unlock karo"}
+                </p>
                 <Button
                   type="button"
                   size="sm"
@@ -144,6 +170,17 @@ export default function ChangePinDialog({ open, onOpenChange, lockMinutes, onLoc
                   {bioBusy ? "Waiting..." : "Enable"}
                 </Button>
               </div>
+            )}
+            {bioSupported && (bioStatus?.count || 0) > (thisDeviceEnabled ? 1 : 0) && (
+              <button
+                type="button"
+                data-testid="biometric-remove-all-button"
+                onClick={removeAllBio}
+                disabled={bioBusy}
+                className="text-xs text-rose-500 hover:text-rose-700 underline underline-offset-2"
+              >
+                Sab devices se biometric hatao
+              </button>
             )}
           </div>
           <div className="border-t border-slate-200 pt-4">

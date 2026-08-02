@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import { Delete, ShieldCheck, Fingerprint } from "lucide-react";
 import { toast } from "sonner";
 import api, { setToken, errDetail } from "@/lib/api";
-import { biometricSupported, unlockWithPasskey } from "@/lib/webauthn";
+import { biometricSupported, unlockWithPasskey, deviceBioEnabled } from "@/lib/webauthn";
 
 const PIN_LENGTH = 4;
 
@@ -15,7 +15,7 @@ export default function PinScreen({ mode, onUnlock }) {
 
   useEffect(() => {
     if (mode === "locked" && biometricSupported()) {
-      api.get("/webauthn/status").then(({ data }) => setBioAvailable(data.enabled)).catch(() => {});
+      api.get("/webauthn/status").then(({ data }) => setBioAvailable(deviceBioEnabled(data))).catch(() => {});
     }
   }, [mode]);
 

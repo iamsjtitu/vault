@@ -135,7 +135,9 @@ def test_full_ceremony_register_and_unlock(auth_hdrs):
     assert r.json()["enabled"] is True
 
     r = requests.get(f"{BASE_URL}/api/webauthn/status", headers=HDRS)
-    assert r.json() == {"enabled": True, "count": 1}
+    body = r.json()
+    assert body["enabled"] is True and body["count"] == 1
+    assert body["credential_ids"] == [b64url(device.cred_id)]
 
     r = requests.post(f"{BASE_URL}/api/webauthn/auth/options", headers=HDRS)
     assert r.status_code == 200
@@ -177,6 +179,40 @@ def test_unknown_credential_rejected(auth_hdrs):
     auth_opts = requests.post(f"{BASE_URL}/api/webauthn/auth/options", headers=HDRS).json()
     r = requests.post(f"{BASE_URL}/api/webauthn/auth/verify", headers=HDRS, json=stranger.get(auth_opts))
     assert r.status_code == 401
+
+
+def test_multi_device_register_and_targeted_unlock(auth_hdrs):
+    android = FakeAuthenticator()
+    iphone = FakeAuthenticator()
+    for device in (android, iphone):
+        opts = requests.post(f"{BASE_URL}/api/webauthn/register/options", headers=auth_hdrs).json()
+        r = requests.post(f"{BASE_URL}/api/webauthn/register/verify", headers=auth_hdrs, json=device.create(opts))
+        assert r.status_code == 200, r.text
+
+    status = requests.get(f"{BASE_URL}/api/webauthn/status", headers=HDRS).json()
+    assert status["count"] == 2
+    assert set(status["credential_ids"]) == {b64url(android.cred_id), b64url(iphone.cred_id)}
+
+    for device in (android, iphone):
+        auth_opts = requests.post(
+            f"{BASE_URL}/api/webauthn/auth/options", headers=HDRS,
+            json={"credential_id": b64url(device.cred_id)},
+        ).json()
+        assert [c["id"] for c in auth_opts["allowCredentials"]] == [b64url(device.cred_id)]
+        r = requests.post(f"{BASE_URL}/api/webauthn/auth/verify", headers=HDRS, json=device.get(auth_opts))
+        assert r.status_code == 200, r.text
+
+    r = requests.delete(
+        f"{BASE_URL}/api/webauthn/credentials",
+        headers=auth_hdrs, params={"credential_id": b64url(android.cred_id)},
+    )
+    assert r.json()["deleted"] == 1
+    status = requests.get(f"{BASE_URL}/api/webauthn/status", headers=HDRS).json()
+    assert status["credential_ids"] == [b64url(iphone.cred_id)]
+
+    auth_opts = requests.post(f"{BASE_URL}/api/webauthn/auth/options", headers=HDRS, json={}).json()
+    r = requests.post(f"{BASE_URL}/api/webauthn/auth/verify", headers=HDRS, json=iphone.get(auth_opts))
+    assert r.status_code == 200
 
 
 def test_disable_biometric(auth_hdrs):

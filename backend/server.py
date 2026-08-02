@@ -276,14 +276,13 @@ async def pop_challenge(kind: str, rp_id: str) -> bytes:
 @api_router.get("/webauthn/status")
 async def webauthn_status(request: Request):
     host = external_host(request)
-    count = await db.webauthn_credentials.count_documents({"rp_id": host})
-    return {"enabled": count > 0, "count": count}
+    creds = await db.webauthn_credentials.find({"rp_id": host}).to_list(20)
+    return {"enabled": len(creds) > 0, "count": len(creds), "credential_ids": [c["credential_id"] for c in creds]}
 
 
 @api_router.post("/webauthn/register/options")
 async def webauthn_register_options(request: Request, _: str = Depends(require_auth)):
     origin, rp_id = webauthn_rp(request)
-    existing = await db.webauthn_credentials.find({"rp_id": rp_id}).to_list(20)
     options = generate_registration_options(
         rp_id=rp_id,
         rp_name="MyVault",
@@ -291,9 +290,6 @@ async def webauthn_register_options(request: Request, _: str = Depends(require_a
         user_name="MyVault Owner",
         user_display_name="MyVault Owner",
         challenge=secrets.token_bytes(32),
-        exclude_credentials=[
-            PublicKeyCredentialDescriptor(id=base64url_to_bytes(c["credential_id"])) for c in existing
-        ],
         authenticator_selection=AuthenticatorSelectionCriteria(
             authenticator_attachment=AuthenticatorAttachment.PLATFORM,
             resident_key=ResidentKeyRequirement.PREFERRED,
@@ -339,6 +335,13 @@ async def webauthn_auth_options(request: Request):
     creds = await db.webauthn_credentials.find({"rp_id": rp_id}).to_list(20)
     if not creds:
         raise HTTPException(status_code=404, detail="Biometric unlock not set up on this device")
+    try:
+        body = await request.json()
+    except Exception:
+        body = {}
+    wanted = body.get("credential_id") if isinstance(body, dict) else None
+    if wanted:
+        creds = [c for c in creds if c["credential_id"] == wanted] or creds
     options = generate_authentication_options(
         rp_id=rp_id,
         challenge=secrets.token_bytes(32),
@@ -384,9 +387,12 @@ async def webauthn_auth_verify(request: Request):
 
 
 @api_router.delete("/webauthn/credentials")
-async def webauthn_disable(request: Request, _: str = Depends(require_auth)):
+async def webauthn_disable(request: Request, credential_id: Optional[str] = None, _: str = Depends(require_auth)):
     host = external_host(request)
-    result = await db.webauthn_credentials.delete_many({"rp_id": host})
+    query = {"rp_id": host}
+    if credential_id:
+        query["credential_id"] = credential_id
+    result = await db.webauthn_credentials.delete_many(query)
     return {"deleted": result.deleted_count}
 
 
