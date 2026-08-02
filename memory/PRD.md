@@ -36,6 +36,14 @@
 - Family Grouping: member_name on Logins & Cards (like Insurance) — "Member / For Whom" field in forms, emerald member badges, member filter pills (dynamic, hidden when unused), member included in logins search
 - Fixed: FAB was mis-anchored (fadeUp transform created containing block); animation now opacity-only, FAB truly bottom-right
 
+### June 2026 — Iteration 4
+- Mobile fixes: datalist → tappable suggestion chips (title + member, all 3 forms); refresh no longer re-asks PIN (localStorage token check on mount)
+- Auto Lock Timer: vault locks after 5 min inactivity (mousedown/keydown/touchstart/scroll reset timer), toast on auto-lock
+- Keyboard PIN entry (0-9 + Backspace) on lock screen
+- GET /api/members endpoint (distinct members across all collections) powers suggestions
+- New PWA icon (blue gradient padlock)
+- Deployed to user's VPS (v.9x.design) with GitHub Actions auto-deploy (password auth)
+
 ## Testing
 - Iteration 1: 100% pass backend (8/8 pytest) + all frontend flows (see /app/test_reports/iteration_1.json)
 - Master PIN for testing: 1234 (see /app/memory/test_credentials.md)

@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from "react";
 import "@/App.css";
-import { Toaster } from "sonner";
+import { Toaster, toast } from "sonner";
 import { ShieldCheck, Lock, KeyRound, FileText, LogOut, Settings, CreditCard } from "lucide-react";
 import api, { clearToken } from "@/lib/api";
 import PinScreen from "@/components/PinScreen";
@@ -8,6 +8,8 @@ import CredentialsTab from "@/components/CredentialsTab";
 import InsuranceTab from "@/components/InsuranceTab";
 import CardsTab from "@/components/CardsTab";
 import ChangePinDialog from "@/components/ChangePinDialog";
+
+const AUTO_LOCK_MS = 5 * 60 * 1000;
 
 function App() {
   const [phase, setPhase] = useState("loading"); // loading | setup | locked | unlocked
@@ -34,6 +36,25 @@ function App() {
     );
     return () => api.interceptors.response.eject(id);
   }, [lock]);
+
+  useEffect(() => {
+    if (phase !== "unlocked") return;
+    let timer;
+    const reset = () => {
+      clearTimeout(timer);
+      timer = setTimeout(() => {
+        lock();
+        toast.info("Vault locked due to inactivity");
+      }, AUTO_LOCK_MS);
+    };
+    const events = ["mousedown", "keydown", "touchstart", "scroll"];
+    events.forEach((e) => window.addEventListener(e, reset, { passive: true }));
+    reset();
+    return () => {
+      clearTimeout(timer);
+      events.forEach((e) => window.removeEventListener(e, reset));
+    };
+  }, [phase, lock]);
 
   useEffect(() => {
     api
